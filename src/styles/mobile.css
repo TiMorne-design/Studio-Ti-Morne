@@ -1,0 +1,155 @@
+/**
+ * Styles spécifiques pour appareils mobiles
+ * À inclure dans le projet pour adapter l'interface aux mobiles
+ */
+
+/* Media query pour les appareils mobiles */
+@media (max-width: 768px) {
+    /* --- Styles généraux --- */
+    body {
+      touch-action: none; /* Désactiver le comportement tactile par défaut du navigateur */
+      overflow: hidden;
+    }
+    
+    /* --- Overlays --- */
+    /* Adapter les overlays en plein écran sur mobile */
+    div[class*="overlay-container"] {
+      width: 100% !important;
+      border-radius: 0 !important;
+      padding: 20px !important;
+    }
+    
+    /* Ajuster les titres des overlays */
+    div[class*="overlay-container"] h1 {
+      font-size: 1.8rem !important;
+    }
+    
+    /* Ajuster l'espacement des paragraphes */
+    div[class*="overlay-container"] p {
+      font-size: 0.95rem !important;
+      margin-bottom: 15px !important;
+    }
+    
+    /* --- Boutons et contrôles --- */
+    /* Rendre les boutons plus grands pour le tactile */
+    button {
+      min-height: 44px; /* Standard d'accessibilité pour les contrôles tactiles */
+    }
+    
+    /* Styliser le bouton de retour */
+    .return-button {
+      top: 10px !important;
+      left: 10px !important;
+      scale: 0.9 !important;
+    }
+    
+    /* --- Interface navigationnelle --- */
+    /* Guide de swipe mobile */
+    .mobile-guide {
+      position: fixed;
+      bottom: 200px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgba(255, 255, 255, 0.8);
+      border-radius: 20px;
+      padding: 12px 20px;
+      text-align: center;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      z-index: 1000;
+      animation: fade-in-out 10s forwards;
+    }
+    
+    .mobile-guide-content {
+      font-size: 14px;
+      color: #2A9D8F;
+      font-weight: 500;
+    }
+    
+    .mobile-guide-content p {
+      margin: 5px 0;
+    }
+    
+    /* Animation de fondu pour le guide */
+    @keyframes fade-in-out {
+      0% { opacity: 0; transform: translate(-50%, 20px); }
+      10% { opacity: 1; transform: translate(-50%, 0); }
+      80% { opacity: 1; transform: translate(-50%, 0); }
+      100% { opacity: 0; transform: translate(-50%, 20px); }
+    }
+    
+    /* Contrôleur de qualité visuelle */
+    .quality-toggle {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      background-color: rgba(255, 255, 255, 0.8);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      z-index: 1000;
+    }
+    
+    .quality-toggle button {
+      border: none;
+      background-color: transparent;
+      padding: 6px 10px;
+      font-size: 12px;
+      color: #666;
+    }
+    
+    .quality-toggle button.active {
+      background-color: #2A9D8F;
+      color: white;
+    }
+    
+    /* --- Optimisations de performance --- */
+    /* Désactiver les animations CSS complexes sur mobile */
+    @media (max-width: 768px) {
+      * {
+        animation-duration: 0.3s !important; /* Limiter la durée des animations */
+      }
+      
+      /* Réduire la qualité des arrière-plans et effets */
+      .background-effect {
+        backdrop-filter: none !important; /* Désactiver les filtres coûteux */
+        -webkit-backdrop-filter: none !important;
+      }
+    }
+    
+    /* --- Adaptations pour orientation --- */
+    /* Styles spécifiques pour l'orientation portrait */
+    @media (max-width: 768px) and (orientation: portrait) {
+      .mobile-controls {
+        bottom: 80px !important; /* Repositionner les contrôles plus haut en portrait */
+      }
+      
+      /* Réduire la taille des cartes dans les overlays */
+      div[class*="cards-container"] {
+        grid-template-columns: 1fr !important;
+      }
+    }
+    
+    /* Styles spécifiques pour l'orientation paysage */
+    @media (max-width: 768px) and (orientation: landscape) {
+      .mobile-controls {
+        bottom: 20px !important;
+        right: 20px !important;
+        left: auto !important;
+        flex-direction: column !important;
+      }
+      
+      /* Réduire les marges et paddings en paysage */
+      div[class*="overlay-container"] {
+        padding: 15px !important;
+      }
+    }
+  }
+  
+  /* Support pour les tablettes */
+  @media (min-width: 769px) and (max-width: 1024px) {
+    /* Ajustements spécifiques aux tablettes */
+    div[class*="overlay-container"] {
+      width: 70% !important;
+    }
+  }

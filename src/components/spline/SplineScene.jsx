@@ -1,0 +1,301 @@
+/**
+ * Composant SplineScene
+ * Gère le rendu et les interactions avec la scène Spline
+ */
+import React, { useRef, useImperativeHandle, forwardRef, useEffect } from 'react';
+import PropTypes from 'prop-types';
+import Spline from '@splinetool/react-spline';
+import useCameraControls from './useCameraControls';
+import useAnimation from '../../hooks/useAnimation';
+import cameraUtils from '../../utils/cameraUtils';
+import splineHelpers from '../../utils/splineHelpers';
+import debugUtils from '../../utils/debugUtils';
+import { getObjectId, isPortfolioDoor } from '../../utils/objectUtils';
+import { BUTTON_IDS } from '../../constants/ids';
+
+const { logger } = debugUtils;
+
+/**
+ * Composant de scène Spline avec contrôles de caméra améliorés
+ */
+const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad, qualityLevel }, ref) => {
+  const splineRef = useRef(null);
+  const cameraRef = useRef(null);
+  const lastClickedButtonRef = useRef(null);
+  
+  // Utiliser les hooks personnalisés
+  const {
+    initializeCamera,
+    handleWheel,
+    handleMouseMove,
+    handleButtonClick,
+    restorePreviousCameraState,
+    moveCamera,  // Utiliser moveCamera du hook useCameraControls
+    isControlsEnabled,
+    hasPreviousState
+  } = useCameraControls(cameraRef, splineRef);
+  
+  const { animateCamera } = useAnimation();
+  
+  /**
+   * Anime la caméra vers une position et rotation cibles
+   * @param {Object} options - Options d'animation
+   * @param {Object} options.position - Position cible {x, y, z}
+   * @param {Object} options.rotation - Rotation cible en degrés {x, y, z}
+   * @param {Number} options.duration - Durée de l'animation en ms
+   * @param {Boolean} options.preventAutoReset - Si true, empêche tout retour automatique
+   */
+  const handleAnimateCamera = ({ position, rotation, duration = 2000, preventAutoReset = false }) => {
+    if (!cameraRef.current) {
+      logger.warn("Impossible d'animer la caméra: référence caméra manquante");
+      return;
+    }
+    
+    logger.log("Animation de la caméra:", {
+      positionCible: position,
+      rotationCible: rotation,
+      durée: duration,
+      preventAutoReset: preventAutoReset
+    });
+    
+    // Si preventAutoReset est activé, marquer que cette animation ne doit pas être réinitialisée
+    if (preventAutoReset) {
+      window.__preventCameraReset = true;
+    }
+    
+    // Utiliser le hook d'animation pour l'animation fluide
+    animateCamera(cameraRef.current, {
+      position,
+      rotation,
+      duration,
+      easing: 'easeOutCubic',
+    onComplete: () => {
+      logger.log("Animation de caméra terminée");
+    }
+  });
+};
+  
+  // Exposer les méthodes aux composants parents via ref
+  useImperativeHandle(ref, () => ({
+    // Obtenir l'instance Spline
+    getSplineInstance: () => splineRef.current,
+    
+    // Gestion des contrôles de caméra
+    handleButtonClick,
+    handleWheel, 
+    handleMouseMove, 
+    restorePreviousCameraState: () => {
+      if (window.__preventCameraReset) {
+        logger.log("Annulation du retour automatique de la caméra via __preventCameraReset");
+        return;
+      }
+    
+      return restorePreviousCameraState(); // on appelle la vraie fonction du hook
+    },    
+    hasPreviousState,
+    
+    // Animation de caméra
+    animateCamera: handleAnimateCamera,
+
+    
+    // Exposer moveCamera pour permettre le déplacement direct
+    moveCamera: (distance) => {
+      if (typeof moveCamera === 'function') {
+        return moveCamera(distance);
+      }
+      // Fallback : simuler un événement de défilement
+      const simulatedEvent = { deltaY: distance };
+      handleWheel(simulatedEvent);
+      return true;
+    },
+    
+    // Ajout de la nouvelle fonction pour le bouton portfolio
+    handlePortfolioButtonClick: () => {
+      // Marquer que nous sommes en mode portfolio
+      window.__portfolioMode = true;
+      window.__preventCameraReset = true;
+      logger.log("Mode portfolio activé - prévention de reset automatique");
+      return true;
+    },
+
+    // Réinitialisation de l'état de la caméra
+    resetCameraState: () => {
+      if (splineRef.current && lastClickedButtonRef.current) {
+        try {
+          // Tenter de réinitialiser l'animation du dernier bouton cliqué
+          const result = splineHelpers.emitEventReverse(
+            splineRef.current, 
+            'mouseUp', 
+            lastClickedButtonRef.current
+          );
+          
+          // Réinitialiser la référence du dernier bouton cliqué
+          if (result) {
+            lastClickedButtonRef.current = null;
+            return true;
+          }
+          
+          // Plan B : Si la réinitialisation directe échoue, tenter une approche alternative
+          logger.warn("Échec de la première méthode de réinitialisation, tentative de plan B");
+          
+          if (cameraRef.current) {
+            splineHelpers.emitEvent(splineRef.current, 'resetAllStates', cameraRef.current.uuid);
+            return true;
+          }
+        } catch (error) {
+          logger.error("Erreur lors de la réinitialisation des états de caméra:", error);
+        }
+      }
+      
+      return false;
+    },
+    
+    
+    // Obtenir le dernier bouton cliqué
+    getLastClickedButton: () => lastClickedButtonRef.current,
+    
+    // Vérifier si les contrôles sont activés
+    isControlsEnabled: () => isControlsEnabled
+  }));
+  
+  /**
+   * Fonction appelée quand Spline est chargé
+   * @param {Object} splineApp - Instance Spline
+   */
+  const onLoad = (splineApp) => {
+    logger.log('Spline chargé');
+    splineRef.current = splineApp;
+    
+    // Exposer l'instance Spline globalement
+    window.splineInstance = splineApp;
+    
+    // Tenter de trouver la caméra (d'abord par son nom spécifique, puis par défaut)
+    const camera = splineApp.findObjectByName("Character") || splineApp.camera;
+    
+    if (camera) {
+      initializeCamera(camera);
+    } else {
+      logger.error('Aucune caméra disponible dans la scène Spline');
+    }
+    
+    // Analyser l'instance Spline pour le débogage
+    splineHelpers.analyzeSplineInstance(splineApp);
+    
+    // Appliquer la qualité visuelle si spécifiée
+    if (qualityLevel && splineApp.setQuality) {
+      try {
+        logger.log(`Application du niveau de qualité: ${qualityLevel}`);
+        splineApp.setQuality(qualityLevel);
+      } catch (error) {
+        logger.error("Erreur lors de l'application du niveau de qualité:", error);
+      }
+    }
+    
+    // Appeler la fonction onLoad des props si elle existe
+    if (propsOnLoad) {
+      propsOnLoad(splineApp);
+    }
+  };
+  
+  /**
+   * Gestionnaire pour les clics sur les objets Spline
+   * @param {Object} e - Événement de clic
+   */
+  const onSplineMouseUp = (e) => {
+    if (!e.target) return;
+    
+    const objectName = e.target.name || '';
+    const objectUuid = e.target.uuid;
+        
+    // Obtenir l'ID de l'objet
+    const objectId = getObjectId(objectName, objectUuid);
+    
+    logger.log('Objet cliqué:', objectName, "UUID:", objectUuid, "ID:", objectId);
+    
+    // Cas particuliers où nous ne voulons pas désactiver les contrôles
+    const isAutomaticDoorOpening = window.__automaticDoorOpening === true;
+    const isPortfolioDoorObj = isPortfolioDoor(objectId, objectName);
+    const isPortfolioButton = objectId === BUTTON_IDS.PORTFOLIO && 
+                           (objectName === 'BUTTON_PORTFOLIO' || objectName.includes('BUTTON_PORTFOLIO'));
+  
+     // Cas particulier pour le bouton portfolio
+  if (isPortfolioButton) {
+    logger.log("Bouton portfolio détecté dans SplineScene");
+    window.__portfolioMode = true;
+    
+    lastClickedButtonRef.current = objectId;
+  }
+  // Si ce n'est pas un cas spécial, vérifier si c'est un bouton qui déclenche une animation
+  else if (!isAutomaticDoorOpening && !isPortfolioDoorObj) {
+    // Vous pouvez conserver vos patterns pour la compatibilité arrière
+    const buttonPatterns = [
+      /BUTTON_/i, /DATAVIZ/i, /3D/i, /SITE/i, /PORTE_/i, /PRESTATIONS/i, /ABOUT/i
+    ];
+      
+      // Combine à la fois la vérification par ID et par pattern
+      const isButton = 
+        Object.values(BUTTON_IDS).includes(objectId) || 
+        buttonPatterns.some(pattern => pattern.test(objectName) || pattern.test(objectUuid));
+      
+      if (isButton) {
+        logger.log("Bouton cliqué, désactivation des contrôles");
+        
+        // Stocker l'ID ou UUID du bouton cliqué
+        lastClickedButtonRef.current = objectId || objectUuid;
+        
+        // Désactiver les contrôles et sauvegarder l'état actuel
+        handleButtonClick();
+      }
+    } else if (isPortfolioDoorObj) {
+      // Pour la porte portfolio, stocker l'ID sans désactiver les contrôles
+      lastClickedButtonRef.current = objectId;
+    }
+    
+    // Transmettre l'événement au parent avec l'ID en plus
+    if (onObjectClick) {
+      onObjectClick(objectName, splineRef.current, objectId);
+    }
+  };
+  
+  // Effet pour initialiser/nettoyer les variables globales
+  useEffect(() => {
+    // Initialiser la variable globale au démarrage
+    window.__automaticDoorOpening = false;
+    window.__portfolioMode = false; 
+    window.__preventCameraReset = false; // Ajouter cette ligne
+    
+    // Nettoyer la variable globale au démontage
+    return () => {
+      delete window.__automaticDoorOpening;
+      delete window.__portfolioMode;
+       delete window.__preventCameraReset; // Ajouter cette ligne
+    };
+  }, []);
+  
+  return (
+    <div
+      style={{
+        width: '100vw',
+        height: '100vh',
+        position: 'relative'
+      }}
+      onWheel={handleWheel}
+      onMouseMove={handleMouseMove}
+    >
+      <Spline
+        scene={scenePath}
+        onLoad={onLoad}
+        onSplineMouseUp={onSplineMouseUp}
+      />
+    </div>
+  );
+});
+
+SplineScene.propTypes = {
+  scenePath: PropTypes.string.isRequired,
+  onObjectClick: PropTypes.func,
+  onLoad: PropTypes.func,
+  qualityLevel: PropTypes.string
+};
+
+export default SplineScene;
