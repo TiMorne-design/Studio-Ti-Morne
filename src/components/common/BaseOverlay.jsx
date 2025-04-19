@@ -52,7 +52,23 @@ const BaseOverlay = ({
   };
   
   return (
-    <div style={containerStyle}>
+    
+    <div
+    className="overlay-container"
+    style={containerStyle}
+    onClick={handleClose}
+  >
+    <div
+      className="overlay-inner"
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => {
+          // Ne pas propager les événements tactiles dans l'overlay
+          e.stopPropagation();
+        }}
+      >
+
+
       <div style={{
         ...overlayStyles.header,
         ...customStyles.header
@@ -83,6 +99,7 @@ const BaseOverlay = ({
       <div className="overlay-content" style={customStyles.content || {}}>
         {children}
       </div>
+    </div>
     </div>
   );
 };

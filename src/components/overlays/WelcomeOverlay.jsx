@@ -20,6 +20,11 @@ const WelcomeOverlay = ({ onClose }) => {
     if (onClose) onClose();
   }, [onClose]);
   
+  // Empêcher la propagation des événements tactiles
+  const stopPropagation = useCallback((e) => {
+    e.stopPropagation();
+  }, []);
+  
   // Si non visible, ne rien afficher
   if (!visible) return null;
 

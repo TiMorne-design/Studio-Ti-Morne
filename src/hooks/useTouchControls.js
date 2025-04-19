@@ -1,8 +1,4 @@
-/**
- * Hook optimisé pour les contrôles tactiles sans besoin de modifications dans useCameraControls.js
- * Cette version traduit les interactions tactiles en rotations absolues
- * avec correction de la direction du swipe
- */
+
 import { useCallback, useRef, useEffect } from 'react';
 import debugUtils from '../utils/debugUtils';
 
@@ -49,10 +45,10 @@ export default function useTouchControls({
   
   // Paramètres d'inertie
   const inertiaOptions = {
-    damping: 0.92,
+    damping: 0.85,
     minSpeed: 0.5,
     swipeThreshold: 5,
-    swipeMultiplier: 1.5
+    swipeMultiplier: 0.6
   };
   
   /**
@@ -60,7 +56,7 @@ export default function useTouchControls({
    */
   const calculateVelocity = (delta, time) => {
     if (time === 0) return 0;
-    return Math.min(Math.abs(delta) / time * 16, 20) * Math.sign(delta);
+    return Math.min(Math.abs(delta) / time * 16, 8) * Math.sign(delta);
   };
   
   /**
@@ -110,6 +106,11 @@ export default function useTouchControls({
   const handleTouchMove = useCallback((e) => {
     // Vérifications de base
     if (!touchStateRef.current || e.touches.length !== 1 || !onMouseMove) return;
+
+    // Ignorer si l'événement provient d'un overlay
+    if (e.target.closest('.overlay-content') || e.target.closest('[class*="overlay-container"]')) {
+      return;
+    }
     
     const touch = e.touches[0];
     const now = Date.now();
@@ -139,7 +140,7 @@ export default function useTouchControls({
         
         // Mise à jour de la position cumulative de la caméra
         // Cette valeur représente la rotation cumulée depuis le début des interactions
-        cameraPosRef.current.x += deltaX * sensitivity * 0.01;
+        cameraPosRef.current.x += deltaX * sensitivity * 0.07;
         
         // Limiter la rotation pour éviter les extrêmes
         const maxRotation = Math.PI * 0.4; // ~72 degrés
@@ -191,10 +192,7 @@ export default function useTouchControls({
     // Si l'utilisateur swipe de droite à gauche (vélocité négative), la caméra doit tourner vers la droite (vélocité positive)
     let currentVelocity = -velocity; // Notez le signe négatif ici pour inverser
     
-    // Appliquer un multiplicateur si c'est un swipe
-    if (isSwipe) {
-      currentVelocity *= inertiaOptions.swipeMultiplier;
-    }
+    currentVelocity = Math.sign(currentVelocity) * Math.min(Math.abs(currentVelocity), isSwipe ? 4.5 : 3);
     
     inertiaRef.current.active = true;
     
@@ -209,7 +207,7 @@ export default function useTouchControls({
       currentVelocity *= inertiaOptions.damping;
       
       // Mettre à jour la position cumulative
-      cameraPosRef.current.x += currentVelocity * 0.01;
+      cameraPosRef.current.x += currentVelocity * 0.05;
       
       // Limiter la rotation
       const maxRotation = Math.PI * 0.4;
