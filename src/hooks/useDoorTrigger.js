@@ -110,7 +110,7 @@ export default function useDoorTrigger({ splineRef }) {
     const posZ = camera.position.z;
     
     // Si c'est la porte Portfolio, marquer spécifiquement qu'il s'agit d'une ouverture automatique
-    const isPortfolioDoor = doorId === BUTTON_IDS.PORTFOLIO || doorId === OBJECT_IDS.PORTE_PORTFOLIO;
+    const isPortfolioDoor = doorId === BUTTON_IDS.PORTFOLIO || doorId === OBJECT_IDS.PORTE_OUVERT;
     
     if (isPortfolioDoor) {
       // Ajouter un flag global pour indiquer que c'est une ouverture automatique de la porte portfolio

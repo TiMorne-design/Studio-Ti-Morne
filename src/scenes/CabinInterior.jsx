@@ -228,13 +228,12 @@ export default function CabinInterior() {
   
   // Utiliser le hook des contrôles tactiles
   const { attachTouchListeners } = useTouchControls({
-    onScroll: handleWheel,
     onMouseMove: (e) => {
       if (splineSceneRef.current) {
         splineSceneRef.current.handleMouseMove(e);
       }
     },
-    sensitivity: isMobile ? 3 : 2
+    sensitivity: isMobile ? 3.5 : 2.5 // Augmenter légèrement la sensibilité pour compenser le swipe
   });
   
   /**

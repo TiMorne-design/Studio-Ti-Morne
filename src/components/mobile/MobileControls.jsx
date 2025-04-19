@@ -18,7 +18,7 @@ const MobileControls = ({ onMoveForward, onMoveBackward }) => {
   const styles = {
     container: {
       position: 'fixed',
-      bottom: '100px',
+      bottom: '20px', // Position plus basse (modifié de 100px à 20px)
       left: '0',
       width: '100%',
       display: 'flex',

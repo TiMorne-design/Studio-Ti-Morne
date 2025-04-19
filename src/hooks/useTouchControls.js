@@ -1,7 +1,6 @@
 /**
  * Hook pour la gestion des contrôles tactiles améliorés
- * Convertit les événements tactiles en événements comparables à la souris/molette
- * Ajoute une inertie pour le swipe horizontal
+ * Convertit les événements tactiles en événements de rotation avec support de swipe
  */
 import { useCallback, useRef, useEffect } from 'react';
 import debugUtils from '../utils/debugUtils';
@@ -9,16 +8,14 @@ import debugUtils from '../utils/debugUtils';
 const { logger } = debugUtils;
 
 /**
- * Hook personnalisé pour gérer les interactions tactiles avec inertie
+ * Hook personnalisé pour gérer les interactions tactiles avec inertie et swipe
  * @param {Object} options - Options de configuration
- * @param {Function} options.onScroll - Fonction de callback pour le défilement
  * @param {Function} options.onMouseMove - Fonction de callback pour le mouvement horizontal (rotation)
  * @param {Number} options.sensitivity - Facteur de sensibilité du toucher (défaut: 2.5)
  * @param {Number} options.threshold - Seuil de détection du mouvement (défaut: 3px)
  * @returns {Object} - Gestionnaires d'événements tactiles et fonction d'attachement
  */
 export default function useTouchControls({ 
-  onScroll, 
   onMouseMove = null,
   sensitivity = 2.5,
   threshold = 3
@@ -31,12 +28,12 @@ export default function useTouchControls({
     lastY: 0,
     timestamp: 0,
     moving: false,
-    moveType: null  // 'vertical' ou 'horizontal'
+    moveType: null,  // 'horizontal'
+    isSwiping: false
   });
   
   // Variables pour l'inertie
   const inertiaRef = useRef({
-    vertical: 0,
     horizontal: 0,
     active: false
   });
@@ -47,17 +44,16 @@ export default function useTouchControls({
   // Référence pour la dernière vélocité de mouvement
   const velocityRef = useRef({
     x: 0,
-    y: 0,
     timestamp: 0
   });
   
   // Paramètres d'inertie
   const inertiaOptions = {
-    horizontalDuration: 500,   // Durée de l'inertie horizontale en ms
-    horizontalDamping: 0.92,   // Facteur d'amortissement (plus élevé = plus long)
-    horizontalMinSpeed: 0.5,   // Vitesse minimale pour continuer l'inertie
-    verticalSteps: 5,          // Nombre d'étapes pour l'inertie verticale
-    verticalDamping: 0.85      // Facteur d'amortissement vertical
+    horizontalDuration: 1000,    // Durée de l'inertie horizontale en ms
+    horizontalDamping: 0.92,     // Facteur d'amortissement (plus élevé = plus long)
+    horizontalMinSpeed: 0.5,     // Vitesse minimale pour continuer l'inertie
+    swipeThreshold: 5,           // Seuil de vitesse pour considérer un geste comme un swipe
+    swipeInertiaMultiplier: 1.5  // Multiplicateur d'inertie pour un swipe (vs. mouvement continu)
   };
   
   /**
@@ -75,20 +71,23 @@ export default function useTouchControls({
   /**
    * Applique l'inertie après un swipe horizontal
    * @param {Number} initialVelocity - Vélocité initiale
+   * @param {Boolean} isSwipeGesture - Indique si c'est un geste de swipe rapide
    */
-  const applyHorizontalInertia = (initialVelocity) => {
+  const applyHorizontalInertia = (initialVelocity, isSwipeGesture = false) => {
     if (!onMouseMove || Math.abs(initialVelocity) < inertiaOptions.horizontalMinSpeed) return;
     
     // Arrêter toute inertie existante
     stopInertia();
     
+    // Appliquer un multiplicateur si c'est un swipe
+    let currentVelocity = initialVelocity;
+    if (isSwipeGesture) {
+      currentVelocity *= inertiaOptions.swipeInertiaMultiplier;
+    }
+    
     // Calculer la position initiale (centre de l'écran)
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    
-    let currentVelocity = initialVelocity;
-    let elapsedTime = 0;
-    const startTime = Date.now();
     
     inertiaRef.current.active = true;
     
@@ -106,8 +105,6 @@ export default function useTouchControls({
       const moveX = currentVelocity * 0.08; // Facteur pour ajuster la sensation de déplacement
       
       // Calculer la position normalisée
-      // Le facteur moveX est utilisé pour simuler un "déplacement" du doigt
-      // Nous gardons une position de base au centre (0) et ajoutons le déplacement simulé
       const normalizedX = moveX;
       const normalizedY = 0; // Garder à 0 pour ne pas affecter la rotation verticale
       
@@ -169,13 +166,13 @@ export default function useTouchControls({
       lastY: touch.clientY,
       timestamp: Date.now(),
       moving: false,
-      moveType: null
+      moveType: null,
+      isSwiping: false
     };
     
     // Réinitialiser les vélocités
     velocityRef.current = {
       x: 0,
-      y: 0,
       timestamp: Date.now()
     };
   }, []);
@@ -193,46 +190,23 @@ export default function useTouchControls({
     const elapsed = now - velocityRef.current.timestamp;
     
     // Calculer les deltas
-    const deltaY = touch.clientY - state.lastY;
     const deltaX = touch.clientX - state.lastX;
     
     // Mettre à jour les vélocités si suffisamment de temps s'est écoulé
     if (elapsed > 16) {  // ~60fps
       velocityRef.current = {
         x: calculateVelocity(deltaX, elapsed),
-        y: calculateVelocity(deltaY, elapsed),
         timestamp: now
       };
     }
     
     // Déterminer le type de mouvement si pas encore défini
-    if (!state.moveType && (Math.abs(deltaX) > threshold || Math.abs(deltaY) > threshold)) {
-      // Si le mouvement horizontal est plus important que le vertical, c'est une rotation
-      if (Math.abs(deltaX) > Math.abs(deltaY)) {
-        touchStateRef.current.moveType = 'horizontal';
-      } else {
-        touchStateRef.current.moveType = 'vertical';
-      }
+    if (!state.moveType && Math.abs(deltaX) > threshold) {
+      touchStateRef.current.moveType = 'horizontal';
     }
     
-    // Traiter en fonction du type de mouvement
-    if (state.moveType === 'vertical' && onScroll) {
-      // Défilement vertical
-      if (Math.abs(deltaY) > threshold) {
-        touchStateRef.current.moving = true;
-        
-        const scrollEvent = {
-          deltaY: deltaY * sensitivity,
-          isTouchEvent: true
-        };
-        
-        onScroll(scrollEvent);
-        
-        // Stocker l'inertie verticale
-        inertiaRef.current.vertical = deltaY * sensitivity;
-      }
-    }
-    else if (state.moveType === 'horizontal' && onMouseMove) {
+    // Traiter en fonction du type de mouvement (toujours horizontal maintenant)
+    if (state.moveType === 'horizontal' && onMouseMove) {
       // Mouvement horizontal = rotation (regarder à gauche/droite)
       if (Math.abs(deltaX) > threshold) {
         window.__preventCameraReset = true;
@@ -275,7 +249,7 @@ export default function useTouchControls({
       e.preventDefault();
       e.stopPropagation();
     }
-  }, [onScroll, onMouseMove, sensitivity, threshold]);
+  }, [onMouseMove, threshold]);
   
   /**
    * Gestionnaire pour la fin du toucher (avec inertie)
@@ -283,38 +257,18 @@ export default function useTouchControls({
   const handleTouchEnd = useCallback((e) => {
     const state = touchStateRef.current;
     const lastVelocity = velocityRef.current;
+    const endTime = Date.now();
+    const touchDuration = endTime - state.timestamp;
+    
+    // Déterminer si c'est un swipe rapide
+    const isSwipeGesture = touchDuration < 300 && Math.abs(lastVelocity.x) > inertiaOptions.swipeThreshold;
     
     // Vérifier si on a assez d'informations pour appliquer l'inertie
-    if (state.moving && state.moveType) {
-      if (state.moveType === 'horizontal') {
-        // Appliquer l'inertie horizontale
-        applyHorizontalInertia(lastVelocity.x);
-      }
-      else if (state.moveType === 'vertical' && onScroll) {
-        // Appliquer l'inertie verticale avec plusieurs étapes
-        let inertiaFactor = inertiaRef.current.vertical * 0.2;
-        
-        // Créer une séquence d'étapes d'inertie qui diminue progressivement
-        for (let i = 0; i < inertiaOptions.verticalSteps; i++) {
-          setTimeout(() => {
-            if (!inertiaRef.current.active) return;
-            
-            // Réduire l'inertie à chaque étape
-            inertiaFactor *= inertiaOptions.verticalDamping;
-            
-            // Créer un événement de défilement basé sur l'inertie
-            const inertiaEvent = { 
-              deltaY: inertiaFactor,
-              isTouchEvent: true,
-              isInertiaEvent: true
-            };
-            
-            if (onScroll && Math.abs(inertiaFactor) > 0.5) {
-              onScroll(inertiaEvent);
-            }
-          }, i * 60);  // Espacer les étapes de 60ms
-        }
-      }
+    if (state.moving && state.moveType === 'horizontal') {
+      // Appliquer l'inertie horizontale avec un multiplicateur pour les swipes
+      applyHorizontalInertia(lastVelocity.x, isSwipeGesture);
+      
+      logger.log(`Toucher terminé: ${isSwipeGesture ? 'Swipe' : 'Mouvement normal'} avec vélocité ${lastVelocity.x}`);
     }
     
     // Réinitialiser l'état du toucher
@@ -325,19 +279,21 @@ export default function useTouchControls({
       lastY: 0,
       timestamp: 0,
       moving: false,
-      moveType: null
+      moveType: null,
+      isSwiping: false
     };
+    
     // Réinitialiser le flag après un délai
-setTimeout(() => {
-  window.__preventCameraReset = false;
-}, 2000);
+    setTimeout(() => {
+      window.__preventCameraReset = false;
+    }, 2000);
     
     // Empêcher le comportement par défaut seulement si nous détectons un mouvement
     if (state.moving) {
       e.preventDefault();
       e.stopPropagation();
     }
-  }, [onScroll, sensitivity]);
+  }, [onMouseMove]);
   
   /**
    * Arrête toutes les animations d'inertie lors du démontage

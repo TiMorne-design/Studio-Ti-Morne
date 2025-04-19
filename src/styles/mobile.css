@@ -121,7 +121,7 @@
     /* Styles spécifiques pour l'orientation portrait */
     @media (max-width: 768px) and (orientation: portrait) {
       .mobile-controls {
-        bottom: 80px !important; /* Repositionner les contrôles plus haut en portrait */
+        bottom: 20px !important; /* Repositionner les contrôles plus haut en portrait */
       }
       
       /* Réduire la taille des cartes dans les overlays */
@@ -137,6 +137,7 @@
         right: 20px !important;
         left: auto !important;
         flex-direction: column !important;
+        gap: 10px !important;
       }
       
       /* Réduire les marges et paddings en paysage */

@@ -132,24 +132,24 @@ const MobileNavigationToolbar = ({ onNavigate, activeButtonId }) => {
     <div style={styles.container}>
       {/* Bouton pour ouvrir/fermer le menu */}
       <button
-  style={styles.menuButton}
-  onTouchStart={(e) => {
-    // Empêcher la propagation et le comportement par défaut
-    e.stopPropagation();
-    e.preventDefault();
-    toggleMenu();
-  }}
-  // Garder onClick uniquement pour desktop
-  onClick={(e) => {
-    // Ne déclencher que s'il ne s'agit pas d'un appareil tactile
-    if (window.matchMedia('(pointer: fine)').matches) {
-      toggleMenu();
-    }
-  }}
-  aria-label={isMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
->
-  {isMenuOpen ? '✕' : '☰'}
-</button>
+        style={styles.menuButton}
+        onTouchStart={(e) => {
+          // Empêcher la propagation et le comportement par défaut
+          e.stopPropagation();
+          e.preventDefault();
+          toggleMenu();
+        }}
+        // Garder onClick uniquement pour desktop
+        onClick={(e) => {
+          // Ne déclencher que s'il ne s'agit pas d'un appareil tactile
+          if (window.matchMedia('(pointer: fine)').matches) {
+            toggleMenu();
+          }
+        }}
+        aria-label={isMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+      >
+        {isMenuOpen ? '✕' : '☰'}
+      </button>
 
       {/* Menu principal */}
       <div style={styles.menu}>
@@ -212,7 +212,10 @@ const MobileNavigationToolbar = ({ onNavigate, activeButtonId }) => {
         
         {/* Bouton de contact */}
         <button
-          style={styles.navItem}
+          style={{
+            ...styles.navItem,
+            ...(activeButtonId === 'contact' ? styles.activeNavItem : {})
+          }}
           onClick={() => handleNavigation('contact')}
         >
           Contact
