@@ -183,7 +183,7 @@ const WelcomeOverlay = ({ onClose }) => {
           style={styles.logo} 
           onError={(e) => {
             // Fallback si l'image ne se charge pas
-            console.error("Impossible de charger le logo");
+            console.error("Impossible de charger le logo.");
             e.target.onerror = null;
             e.target.style.display = 'none';
           }}
