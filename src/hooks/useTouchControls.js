@@ -79,6 +79,10 @@ export default function useTouchControls({
     // Arrêter toute inertie existante
     stopInertia();
     
+    // IMPORTANT: Inverser la vélocité pour correspondre à l'intuition naturelle
+    // Si l'utilisateur swipe de droite à gauche (vélocité négative), la caméra doit tourner vers la droite (vélocité positive)
+    initialVelocity = -initialVelocity;
+    
     // Appliquer un multiplicateur si c'est un swipe
     let currentVelocity = initialVelocity;
     if (isSwipeGesture) {
@@ -90,6 +94,9 @@ export default function useTouchControls({
     const viewportHeight = window.innerHeight;
     
     inertiaRef.current.active = true;
+    
+    // Définir un flag global pour empêcher le retour automatique à la position initiale
+    window.__maintainCameraPosition = true;
     
     // Créer une fonction d'inertie qui s'exécute à intervalles réguliers
     const inertiaStep = () => {
@@ -115,7 +122,8 @@ export default function useTouchControls({
         normalizedX: normalizedX,
         normalizedY: normalizedY,
         isTouchEvent: true,
-        isInertiaEvent: true
+        isInertiaEvent: true,
+        preventAutoReset: true // Flag supplémentaire pour indiquer qu'il ne faut pas réinitialiser
       };
       
       // Appeler la fonction de mouvement
@@ -200,9 +208,17 @@ export default function useTouchControls({
       };
     }
     
+    // Calculer la distance parcourue depuis le début du toucher
+    const totalDistanceX = Math.abs(touch.clientX - state.startX);
+    
     // Déterminer le type de mouvement si pas encore défini
     if (!state.moveType && Math.abs(deltaX) > threshold) {
       touchStateRef.current.moveType = 'horizontal';
+    }
+    
+    // Marquer comme swipe si on dépasse un certain seuil de distance rapidement
+    if (totalDistanceX > 30 && (now - state.timestamp) < 300) {
+      touchStateRef.current.isSwiping = true;
     }
     
     // Traiter en fonction du type de mouvement (toujours horizontal maintenant)
@@ -220,6 +236,10 @@ export default function useTouchControls({
         const normalizedX = (touch.clientX / viewportWidth) * 2 - 1;
         const normalizedY = (touch.clientY / viewportHeight) * 2 - 1;
         
+        // INVERSION : Pour que le mouvement corresponde à l'intuition naturelle
+        // Si on déplace le doigt vers la droite, la caméra doit tourner vers la gauche
+        const invertedNormalizedX = -normalizedX;
+        
         // Stocker l'inertie horizontale
         inertiaRef.current.horizontal = velocityRef.current.x;
         
@@ -227,9 +247,10 @@ export default function useTouchControls({
         const simulatedMouseEvent = {
           clientX: touch.clientX,
           clientY: touch.clientY,
-          normalizedX: normalizedX,
+          normalizedX: invertedNormalizedX, // Utiliser la valeur inversée
           normalizedY: normalizedY,
-          isTouchEvent: true
+          isTouchEvent: true,
+          preventAutoReset: true // Empêcher le reset automatique
         };
         
         // Appeler la fonction de mouvement de souris
@@ -260,15 +281,32 @@ export default function useTouchControls({
     const endTime = Date.now();
     const touchDuration = endTime - state.timestamp;
     
-    // Déterminer si c'est un swipe rapide
-    const isSwipeGesture = touchDuration < 300 && Math.abs(lastVelocity.x) > inertiaOptions.swipeThreshold;
+    // Calculer la distance totale parcourue pour mieux détecter les swipes
+    const totalDistanceX = Math.abs(state.lastX - state.startX);
+    
+    // Déterminer si c'est un swipe rapide - condition améliorée
+    // Un swipe doit être rapide ET avoir parcouru une distance minimale
+    const isSwipeGesture = touchDuration < 300 && 
+                           Math.abs(lastVelocity.x) > inertiaOptions.swipeThreshold &&
+                           totalDistanceX > 20; // Distance minimale en pixels
     
     // Vérifier si on a assez d'informations pour appliquer l'inertie
     if (state.moving && state.moveType === 'horizontal') {
       // Appliquer l'inertie horizontale avec un multiplicateur pour les swipes
       applyHorizontalInertia(lastVelocity.x, isSwipeGesture);
       
-      logger.log(`Toucher terminé: ${isSwipeGesture ? 'Swipe' : 'Mouvement normal'} avec vélocité ${lastVelocity.x}`);
+      logger.log(`Toucher terminé: ${isSwipeGesture ? 'Swipe' : 'Mouvement normal'} avec vélocité ${lastVelocity.x} et distance ${totalDistanceX}px`);
+      
+      // Pour les swipes, empêcher le retour à la position initiale pendant un temps plus long
+      if (isSwipeGesture) {
+        window.__preventCameraReset = true;
+        window.__maintainCameraPosition = true;
+        
+        // Pour les swipes, on maintient la position plus longtemps
+        setTimeout(() => {
+          window.__maintainCameraPosition = false;
+        }, 5000); // 5 secondes
+      }
     }
     
     // Réinitialiser l'état du toucher
@@ -284,9 +322,12 @@ export default function useTouchControls({
     };
     
     // Réinitialiser le flag après un délai
-    setTimeout(() => {
-      window.__preventCameraReset = false;
-    }, 2000);
+    // Mais seulement si ce n'est pas un swipe (pour les swipes, on a un délai plus long défini ci-dessus)
+    if (!isSwipeGesture) {
+      setTimeout(() => {
+        window.__preventCameraReset = false;
+      }, 2000);
+    }
     
     // Empêcher le comportement par défaut seulement si nous détectons un mouvement
     if (state.moving) {
