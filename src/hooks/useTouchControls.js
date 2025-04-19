@@ -190,7 +190,7 @@ export default function useTouchControls({
     
     // CORRECTION: Inverser la vélocité pour le swipe
     // Si l'utilisateur swipe de droite à gauche (vélocité négative), la caméra doit tourner vers la droite (vélocité positive)
-    let currentVelocity = -velocity; // Notez le signe négatif ici pour inverser
+    let currentVelocity = velocity; // Notez le signe négatif ici pour inverser
     
     currentVelocity = Math.sign(currentVelocity) * Math.min(Math.abs(currentVelocity), isSwipe ? 4.5 : 3);
     
