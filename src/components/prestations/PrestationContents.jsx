@@ -74,7 +74,7 @@ ServiceSection.propTypes = {
   description: PropTypes.oneOfType([
     PropTypes.string,
     PropTypes.arrayOf(PropTypes.string)
-  ]).isRequired,
+  ]),
   services: PropTypes.arrayOf(
     PropTypes.shape({
       title: PropTypes.string.isRequired,

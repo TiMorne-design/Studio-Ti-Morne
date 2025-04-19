@@ -33,11 +33,7 @@ export const getObjectId = (objectName, objectUuid = null) => {
  */
 export const getObjectType = (objectId, objectName = '') => {
   // Vérifier si c'est une porte (par ID ou nom)
-  if (objectId === OBJECT_IDS.PORTE_PORTFOLIO || 
-      objectId === OBJECT_IDS.DOOR_EXIT ||
-      objectName === 'Door' || 
-      objectName === 'ExitDoor' || 
-      objectName.includes('Exit')) {
+  if (objectId === OBJECT_IDS.PORTE_OUVERT ) {
     return OBJECT_TYPES.DOOR;
   }
   
@@ -58,7 +54,9 @@ export const getObjectType = (objectId, objectName = '') => {
  * @returns {Boolean} - true si c'est la porte portfolio
  */
 export const isPortfolioDoor = (objectId, objectName) => {
-  return objectId === OBJECT_IDS.PORTE_PORTFOLIO && objectName === 'PORTE_PORTFOLIO';
+  return objectId === OBJECT_IDS.PORTE_OUVERT || 
+         objectName === 'PORTE_OUVERT' || 
+         objectName.includes('PORTE_OUVERT');
 };
 
 /**
@@ -68,7 +66,7 @@ export const isPortfolioDoor = (objectId, objectName) => {
  * @returns {Boolean} - true si c'est le bouton portfolio mais pas la porte
  */
 export const isPortfolioButton = (objectId, objectName) => {
-  return objectId === BUTTON_IDS.PORTFOLIO && objectName !== 'PORTE_PORTFOLIO';
+  return objectId === BUTTON_IDS.PORTFOLIO && objectName !== 'PORTE_OUVERT';
 };
 
 export default {

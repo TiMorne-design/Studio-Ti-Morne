@@ -6,6 +6,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import splineHelpers from '../utils/splineHelpers';
 import cameraUtils from '../utils/cameraUtils';
 import debugUtils from '../utils/debugUtils';
+import { BUTTON_IDS, OBJECT_IDS } from '../constants/ids';
 
 const { logger } = debugUtils;
 
@@ -94,6 +95,7 @@ export default function useDoorTrigger({ splineRef }) {
   
   /**
    * Vérifie si la caméra approche d'une porte et déclenche son ouverture
+   * Séparé des comportements liés aux boutons comme Portfolio
    * @param {Object} camera - Référence à l'objet caméra
    * @param {String} doorId - ID de la porte à vérifier
    * @param {Number} direction - Direction du mouvement (1 = avant, -1 = arrière)
@@ -107,14 +109,38 @@ export default function useDoorTrigger({ splineRef }) {
     const limits = cameraUtils.getCameraLimits();
     const posZ = camera.position.z;
     
+    // Si c'est la porte Portfolio, marquer spécifiquement qu'il s'agit d'une ouverture automatique
+    const isPortfolioDoor = doorId === BUTTON_IDS.PORTFOLIO || doorId === OBJECT_IDS.PORTE_PORTFOLIO;
+    
+    if (isPortfolioDoor) {
+      // Ajouter un flag global pour indiquer que c'est une ouverture automatique de la porte portfolio
+      window.__portfolioDoorAutoOpening = true;
+      
+      // Utiliser un timeout pour réinitialiser ce flag après un court délai
+      setTimeout(() => {
+        window.__portfolioDoorAutoOpening = false;
+      }, 1000);
+    }
+    
     // Si on se déplace vers l'avant et qu'on approche du seuil de la porte
     if (direction > 0 && 
         cameraUtils.isOnTerrace(posZ) && 
         posZ <= limits.doorTrigger && 
         posZ > limits.doorThreshold) {
       
+      // Marquer spécifiquement qu'il s'agit d'une ouverture automatique par seuil
+      window.__doorThresholdTriggered = true;
+      setTimeout(() => {
+        window.__doorThresholdTriggered = false;
+      }, 1000);
+      
       // Déclencher l'ouverture de la porte
-      return triggerDoor(doorId, 5000, true);
+      const result = triggerDoor(doorId, 5000, true);
+      
+      // Pour déboguer
+      logger.log(`Déclenchement auto de la porte ${doorId} au seuil: ${result ? 'succès' : 'échec'}`);
+      
+      return result;
     }
     
     return false;
@@ -169,8 +195,10 @@ export default function useDoorTrigger({ splineRef }) {
       });
       timeoutsRef.current = [];
       
-      // Réinitialiser le marqueur global
+      // Réinitialiser les marqueurs globaux
       window.__automaticDoorOpening = false;
+      window.__portfolioDoorAutoOpening = false;
+      window.__doorThresholdTriggered = false;
     };
   }, []);
   

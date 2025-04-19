@@ -37,7 +37,12 @@ export const VIEW_MAPPINGS = {
     cameraVariablePrefix: 'portfolio',
     specialBehavior: 'portfolio',
     timeout: 2000
-  }
+  },
+  contact: {
+    buttonId: BUTTON_IDS.CONTACT, // Vous devrez définir cet ID dans constants/ids.js
+    cameraVariablePrefix: 'contact',
+    timeout: 2000
+  },
 };
 
 // Configuration des tiroirs de prestation

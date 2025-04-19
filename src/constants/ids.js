@@ -11,7 +11,7 @@ export const BUTTON_IDS = {
   SITE: "2fdc1f0a-fe55-4d37-88ad-c9992bcbad3b",
   PRESTATIONS: "7677450d-2939-40a9-a882-d790b6fe5562",
   ABOUT: "03abadbe-ea22-44a1-b65f-0aa429eff890",
-  PORTFOLIO: "4cf64d89-e15f-4324-99de-64801eeb4f2b",
+  PORTFOLIO: "2b7087f7-63f4-4354-9671-390854505976",
   
   // IDs des tiroirs de prestation
   PRESTA_DV: "79d3df6f-9c9f-4595-a01b-722a0f42d4b7",
@@ -23,8 +23,7 @@ export const BUTTON_IDS = {
 // Définir des IDs séparés pour les portes/objets spéciaux
 export const OBJECT_IDS = {
   // Si la porte portfolio a le même ID que le bouton, définir une constante claire
-  PORTE_PORTFOLIO: BUTTON_IDS.PORTFOLIO,
-  DOOR_EXIT: "door-exit-id" // Remplacer par l'ID réel
+  PORTE_OUVERT: "4cf64d89-e15f-4324-99de-64801eeb4f2b",
 };
 
 // Types d'objets pour la détection
@@ -49,10 +48,9 @@ export const NAME_TO_ID_MAP = {
   'BUTTON_ABOUT': BUTTON_IDS.ABOUT,
   'ABOUT': BUTTON_IDS.ABOUT,
   'BUTTON_PORTFOLIO': BUTTON_IDS.PORTFOLIO,
-  'PORTFOLIO': BUTTON_IDS.PORTFOLIO,
   
   // Portes
-  'PORTE_PORTFOLIO': OBJECT_IDS.PORTE_PORTFOLIO,
+  'PORTE_OUVERT': OBJECT_IDS.PORTE_OUVERT,
   'Door': OBJECT_IDS.DOOR_EXIT,
   'ExitDoor': OBJECT_IDS.DOOR_EXIT,
   

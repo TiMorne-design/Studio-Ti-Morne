@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import SplineScene from '../components/spline/SplineScene';
 import AboutOverlay from '../components/overlays/AboutOverlay';
 import PrestationOverlay from '../components/overlays/PrestationOverlay';
+import WelcomeOverlay from '../components/overlays/WelcomeOverlay';
 import InitialOrientationOverlay from '../components/mobile/InitialOrientationOverlay';
 import NavigationToolbar from '../components/layout/NavigationToolbar';
 import ReturnButton from '../components/common/ReturnButton';
@@ -14,12 +15,10 @@ import MobileControls from '../components/mobile/MobileControls';
 import MobileNavigationToolbar from '../components/mobile/MobileNavigationToolbar';
 import OrientationPrompt from '../components/mobile/OrientationPrompt';
 import LiteExperience from '../components/mobile/LiteExperience';
-import { BUTTON_IDS, OBJECT_TYPES } from '../constants/ids';
+import { BUTTON_IDS, OBJECT_IDS } from '../constants/ids';
 import { 
   VIEW_MAPPINGS, 
-  getViewForObjectName,
   getViewForObjectId,
-  getDrawerForObjectName,
   getDrawerForObjectId
 } from '../constants/viewMappings';
 import { 
@@ -50,7 +49,7 @@ export default function CabinInterior() {
   const navigate = useNavigate();
   const splineSceneRef = useRef(null);
   
-  // Détection de l'appareil - UNE SEULE FOIS
+  // Détection de l'appareil
   const { 
     isMobile, 
     isTablet, 
@@ -61,8 +60,8 @@ export default function CabinInterior() {
   // États pour la gestion des contrôles et boutons
   const [showReturnButton, setShowReturnButton] = useState(false);
   const [activeButtonId, setActiveButtonId] = useState(null);
-  const [activeDrawerId, setActiveDrawerId] = useState(null);
   const [showMobileGuide, setShowMobileGuide] = useState(true);
+  const [lastCameraPosition, setLastCameraPosition] = useState(null);
   
   // États pour les overlays
   const [showAboutOverlay, setShowAboutOverlay] = useState(false);
@@ -70,18 +69,156 @@ export default function CabinInterior() {
   const [prestationContent, setPrestationContent] = useState(null);
   const [prestationTitle, setPrestationTitle] = useState('');
   const [showInitialOrientationOverlay, setShowInitialOrientationOverlay] = useState(true);
-  
-  // État pour la qualité visuelle (pour les appareils moins puissants)
+  const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(true);
+
+  // État pour la qualité visuelle
   const [qualityLevel, setQualityLevel] = useState(
     isLowPerformance ? 'low' : isMobile ? 'medium' : 'high'
   );
   
+  // Références
+  const portfolioButtonClickedRef = useRef(false);
+  const doorHasBeenOpenedOnce = useRef(false);
+  const doorIsOpenRef = useRef(false);
+  const proximityCheckRef = useRef(null);
+  
+  // Fonction pour ouvrir la porte une seule fois
+  const openDoorOnce = useCallback(() => {
+    // Vérifier si la porte a déjà été ouverte
+    if (doorHasBeenOpenedOnce.current) {
+      console.log("Porte déjà ouverte, émission bloquée");
+      return false;
+    }
+    
+    // Marquer que la porte a été ouverte
+    doorHasBeenOpenedOnce.current = true;
+    doorIsOpenRef.current = true;
+    
+    // Récupérer l'instance Spline
+    if (!splineSceneRef.current || !splineSceneRef.current.getSplineInstance) {
+      return false;
+    }
+    
+    const splineApp = splineSceneRef.current.getSplineInstance();
+    if (!splineApp) {
+      return false;
+    }
+    
+    try {
+      // Émettre l'événement directement
+      splineApp.emitEvent('mouseUp', OBJECT_IDS.PORTE_OUVERT);
+      console.log("Porte ouverte avec succès (une seule fois)");
+      // Définir la variable globale
+      window.__doorIsOpen = true;
+      return true;
+    } catch (error) {
+      logger.error("Erreur lors de l'ouverture de la porte:", error);
+      return false;
+    }
+  }, []);
+  
+  // Fonction pour vérifier la proximité de la porte et déclencher l'ouverture
+  const checkAndTriggerDoor = useCallback((doorId, camera, direction) => {
+    // Vérifier d'abord si la porte a déjà été ouverte
+    if (doorHasBeenOpenedOnce.current || window.__doorIsOpen === true) {
+      console.log("Vérification: porte déjà ouverte, ouverture ignorée");
+      return false;
+    }
+
+    // Si le bouton portfolio a été récemment cliqué, ne pas déclencher l'ouverture automatique
+    if (portfolioButtonClickedRef.current && doorId === OBJECT_IDS.PORTE_OUVERT) {
+      return false;
+    }
+    
+    if (!camera) return false;
+    
+    const limits = cameraUtils.getCameraLimits();
+    const posZ = camera.position.z;
+    
+    // Vérifier si on est dans la zone de déclenchement
+    if (direction > 0 && 
+        cameraUtils.isOnTerrace(posZ) && 
+        posZ <= limits.doorTrigger && 
+        posZ > limits.doorThreshold) {
+      
+      // Utiliser la fonction dédiée pour ouvrir la porte une seule fois
+      if (openDoorOnce()) {
+        // Marquer explicitement qu'il s'agit d'une ouverture automatique par proximité
+        window.__doorThresholdTriggered = true;
+        window.__automaticDoorOpening = true;
+        
+        // Réinitialiser les flags après un court délai
+        setTimeout(() => {
+          window.__doorThresholdTriggered = false;
+          window.__automaticDoorOpening = false;
+        }, 1000);
+        
+        logger.log("Ouverture automatique de la porte déclenchée par proximité");
+        return true;
+      }
+    }
+    
+    return false;
+  }, [openDoorOnce]);
+
   // Utiliser le hook de déclenchement de porte
   const { triggerDoor } = useDoorTrigger({ splineRef: splineSceneRef });
-  
+
+  // Initialiser les variables globales
+  useEffect(() => {
+    window.__automaticDoorOpening = false;
+    window.__doorThresholdTriggered = false;
+    window.__portfolioDoorLocked = false;
+    window.__manualPortfolioButtonClick = false;
+    window.__portfolioMode = false;
+    window.__doorIsOpen = false;
+    
+    return () => {
+      delete window.__automaticDoorOpening;
+      delete window.__doorThresholdTriggered;
+      delete window.__portfolioDoorLocked;
+      delete window.__manualPortfolioButtonClick;
+      delete window.__portfolioMode;
+      delete window.__doorIsOpen;
+    };
+  }, []);
+
+  // Effet pour vérifier régulièrement la proximité de la porte
+  useEffect(() => {
+    const checkProximity = () => {
+      // Vérifier si la porte est déjà ouverte
+      if (doorHasBeenOpenedOnce.current || doorIsOpenRef.current === true || window.__doorIsOpen === true) {
+        console.log("Vérification périodique: porte déjà ouverte, skip");
+        return;
+      }
+
+      // Si le bouton portfolio a été récemment cliqué, ne pas vérifier la proximité
+      if (portfolioButtonClickedRef.current) {
+        return;
+      }
+      
+      if (!splineSceneRef.current || !splineSceneRef.current.getSplineInstance) return;
+      
+      const splineApp = splineSceneRef.current.getSplineInstance();
+      if (!splineApp || !splineApp.camera) return;
+      
+      // Vérifier la proximité avec la porte portfolio
+      checkAndTriggerDoor(OBJECT_IDS.PORTE_OUVERT, splineApp.camera, 1);
+    };
+    
+    // Mettre en place un intervalle pour vérifier la proximité
+    proximityCheckRef.current = setInterval(checkProximity, 500);
+    
+    // Nettoyer l'intervalle lors du démontage
+    return () => {
+      if (proximityCheckRef.current) {
+        clearInterval(proximityCheckRef.current);
+      }
+    };
+  }, [checkAndTriggerDoor]);
+
   /**
    * Gestion du défilement pour avancer/reculer
-   * @param {WheelEvent} e - Événement de défilement
    */
   const handleWheel = useCallback((e) => {
     if (splineSceneRef.current) {
@@ -89,16 +226,16 @@ export default function CabinInterior() {
     }
   }, []);
   
-  // Utiliser le hook des contrôles tactiles APRÈS la définition de handleWheel
+  // Utiliser le hook des contrôles tactiles
   const { attachTouchListeners } = useTouchControls({
-  onScroll: handleWheel,
-  onMouseMove: (e) => {
-    if (splineSceneRef.current) {
-      splineSceneRef.current.handleMouseMove(e);
-    }
-  },
-  sensitivity: isMobile ? 3 : 2
-});
+    onScroll: handleWheel,
+    onMouseMove: (e) => {
+      if (splineSceneRef.current) {
+        splineSceneRef.current.handleMouseMove(e);
+      }
+    },
+    sensitivity: isMobile ? 3 : 2
+  });
   
   /**
    * Actions pour les boutons de navigation mobile
@@ -107,11 +244,9 @@ export default function CabinInterior() {
     if (!splineSceneRef.current) return;
     
     try {
-      // Utiliser moveCamera directement si disponible
       if (splineSceneRef.current.moveCamera) {
-        splineSceneRef.current.moveCamera(-400); // Valeur négative pour avancer
+        splineSceneRef.current.moveCamera(-400);
       } else {
-        // Fallback vers la méthode actuelle
         const simulatedEvent = { deltaY: -300 };
         splineSceneRef.current.handleWheel(simulatedEvent);
       }
@@ -124,11 +259,9 @@ export default function CabinInterior() {
     if (!splineSceneRef.current) return;
     
     try {
-      // Utiliser moveCamera directement si disponible
       if (splineSceneRef.current.moveCamera) {
-        splineSceneRef.current.moveCamera(400); // Valeur positive pour reculer
+        splineSceneRef.current.moveCamera(400);
       } else {
-        // Fallback vers la méthode actuelle
         const simulatedEvent = { deltaY: 300 };
         splineSceneRef.current.handleWheel(simulatedEvent);
       }
@@ -138,32 +271,12 @@ export default function CabinInterior() {
   }, []);
   
   /**
-   * Ferme l'overlay de prestation et utilise mouseDown pour fermer le tiroir
+   * Gestion des overlays
    */
   const handleClosePrestationOverlay = useCallback(() => {
-    // Fermer l'overlay d'abord
     setShowPrestationOverlay(false);
-    
-    // Émettre un événement mouseDown sur le tiroir actif pour le fermer
-    if (activeDrawerId && splineSceneRef.current) {
-      const splineApp = splineSceneRef.current.getSplineInstance();
-      if (splineApp) {
-        try {
-          logger.log(`Émission de l'événement mouseDown sur le tiroir ${activeDrawerId}`);
-          splineHelpers.emitEvent(splineApp, 'mouseDown', activeDrawerId);
-        } catch (e) {
-          logger.error("Erreur lors de la fermeture du tiroir:", e);
-        }
-      }
-    }
-    
-    // Réinitialiser l'ID du tiroir actif
-    setActiveDrawerId(null);
-  }, [activeDrawerId]);
+  }, []);
   
-  /**
-   * Ferme l'overlay À propos
-   */
   const handleCloseAboutOverlay = useCallback(() => {
     setShowAboutOverlay(false);
   }, []);
@@ -178,132 +291,183 @@ export default function CabinInterior() {
     // Si un overlay de prestation est ouvert, le fermer
     if (showPrestationOverlay) {
       handleClosePrestationOverlay();
-    }
-    
-        // Avant la restauration, vérifier si nous sommes en mode portfolio
-  const isInPortfolioMode = window.__portfolioMode === true;
-  logger.log("Retour à la position précédente, mode portfolio:", isInPortfolioMode);
-
-  if (splineSceneRef.current) {
-    // Si nous sommes en mode portfolio, gérer ce cas spécial
-    if (isInPortfolioMode) {
-      logger.log("Mode portfolio détecté lors du retour - traitement spécial");
       
-      // Réinitialiser le mode portfolio avant toute autre action
-      window.__portfolioMode = false;
-      
-      // Pour le mode portfolio, simplement ramener la caméra à une position neutre
-      // sans essayer de restaurer un état précédent
-      if (splineSceneRef.current.getSplineInstance) {
+      // Pour les prestations, utiliser une position prédéfinie
+      if (splineSceneRef.current && splineSceneRef.current.getSplineInstance) {
         const splineInstance = splineSceneRef.current.getSplineInstance();
         if (splineInstance) {
-          // Position neutre (par exemple, la position initiale sur la terrasse)
-          const neutralPosition = {
-            x: 0,
-            y: 0,
-            z: 800 // Position sur la terrasse
-          };
+          // Position prédéfinie pour la vue "prestations"
+          const prestationsPosition = { x: -200, y: 300, z: 200 };
+          const prestationsRotation = { x: 0, y: 0, z: 0 };
           
-          const neutralRotation = {
-            x: 0,
-            y: 0,
-            z: 0
-          };
-          
-          // Animation directe vers la position neutre
+          // Animation directe vers la position prestations
           splineSceneRef.current.animateCamera({
-            position: neutralPosition,
-            rotation: neutralRotation,
-            duration: 2000
+            position: prestationsPosition,
+            rotation: prestationsRotation,
+            duration: 1500
           });
           
-          // Réactiver les contrôles
-          // On attendra la fin de l'animation
           setTimeout(() => {
-            // Si splineInstance a une méthode pour réactiver les contrôles, l'utiliser
-            if (splineInstance.resumeAllControls) {
-              splineInstance.resumeAllControls();
-            }
-            
-            // Réinitialiser l'état de l'UI
-            setShowReturnButton(false);
-            setActiveButtonId(null);
-          }, 2000);
-          
-          // Réinitialiser le bouton actif
-          if (activeButtonId) {
-            setTimeout(() => {
-              logger.log(`Émission de l'événement start sur l'objet ${activeButtonId}`);
-              try {
-                splineHelpers.emitEvent(splineInstance, 'start', activeButtonId);
-              } catch (e) {
-                logger.error("Erreur lors de la réinitialisation du bouton:", e);
+            if (splineSceneRef.current) {
+              // Réactiver les contrôles
+              splineSceneRef.current.restoreControlsOnly();
+              
+              // Réinitialiser le bouton actif
+              if (splineInstance && activeButtonId) {
+                setTimeout(() => {
+                  logger.log(`Émission de l'événement start sur l'objet ${activeButtonId}`);
+                  try {
+                    splineHelpers.emitEvent(splineInstance, 'start', activeButtonId);
+                  } catch (e) {
+                    logger.error("Erreur lors de la réinitialisation du bouton:", e);
+                  }
+                }, 100);
               }
-            }, 100);
-          }
+              
+              // Réinitialiser l'état de l'UI
+              setShowReturnButton(false);
+              setActiveButtonId(null);
+            }
+          }, 1600);
         }
       }
-    } else {
-      // Cas standard - restaurer l'état précédent normalement
-      splineSceneRef.current.restorePreviousCameraState();
-      
-      // Obtenir l'instance Spline
-      const splineInstance = splineSceneRef.current.getSplineInstance();
-      
-      // Réinitialiser le bouton actif
-      if (splineInstance && activeButtonId) {
-        setTimeout(() => {
-          logger.log(`Émission de l'événement start sur l'objet ${activeButtonId}`);
-          try {
-            splineHelpers.emitEvent(splineInstance, 'start', activeButtonId);
-          } catch (e) {
-            logger.error("Erreur lors de la réinitialisation du bouton:", e);
-          }
-        }, 100);
-      }
-      
-      setShowReturnButton(false);
-      setActiveButtonId(null);
+      return;
     }
+    
+    // Avant la restauration, vérifier si nous sommes en mode portfolio
+    const isInPortfolioMode = window.__portfolioMode === true;
+    logger.log("Retour à la position précédente, mode portfolio:", isInPortfolioMode);
+  
+    if (splineSceneRef.current) {
+      // Si nous sommes en mode portfolio, gérer ce cas spécial
+      if (isInPortfolioMode) {
+        logger.log("Mode portfolio détecté lors du retour - traitement spécial");
+        
+        // Réinitialiser le mode portfolio
+        window.__portfolioMode = false;
+        window.__preventCameraReset = false;
+        
+        // Nettoyer le timeout de renforcement si existant
+        if (window.__portfolioTimeout) {
+          clearTimeout(window.__portfolioTimeout);
+          window.__portfolioTimeout = null;
+        }
+        
+        // Pour le mode portfolio, ramener la caméra à une position neutre
+        if (splineSceneRef.current.getSplineInstance) {
+          const splineInstance = splineSceneRef.current.getSplineInstance();
+          if (splineInstance) {
+            // Position neutre
+            const neutralPosition = { x: 0, y: 0, z: 900 };
+            const neutralRotation = { x: 0, y: 0, z: 0 };
+            
+            // Animation directe vers la position neutre
+            splineSceneRef.current.animateCamera({
+              position: neutralPosition,
+              rotation: neutralRotation,
+              duration: 2000
+            });
+            
+            // Réactiver les contrôles après l'animation
+            setTimeout(() => {
+              if (splineInstance.resumeAllControls) {
+                splineInstance.resumeAllControls();
+              }
+              
+              // Réinitialiser l'état de l'UI
+              setShowReturnButton(false);
+              setActiveButtonId(null);
+            }, 2000);
+            
+            // Réinitialiser le bouton actif
+            if (activeButtonId) {
+              setTimeout(() => {
+                logger.log(`Émission de l'événement start sur l'objet ${activeButtonId}`);
+                try {
+                  splineHelpers.emitEvent(splineInstance, 'start', activeButtonId);
+                } catch (e) {
+                  logger.error("Erreur lors de la réinitialisation du bouton:", e);
+                }
+              }, 100);
+            }
+          }
+        }
+      } else {
+        // Cas standard - restaurer l'état précédent normalement
+        splineSceneRef.current.restorePreviousCameraState();
+        
+        // Obtenir l'instance Spline
+        const splineInstance = splineSceneRef.current.getSplineInstance();
+        
+        // Réinitialiser le bouton actif
+        if (splineInstance && activeButtonId) {
+          setTimeout(() => {
+            logger.log(`Émission de l'événement start sur l'objet ${activeButtonId}`);
+            try {
+              splineHelpers.emitEvent(splineInstance, 'start', activeButtonId);
+            } catch (e) {
+              logger.error("Erreur lors de la réinitialisation du bouton:", e);
+            }
+          }, 100);
+        }
+        
+        setShowReturnButton(false);
+        setActiveButtonId(null);
       }
+    }
   }, [showPrestationOverlay, handleClosePrestationOverlay, activeButtonId]);
   
   /**
    * Gère les clics sur les tiroirs de prestation
-   * @param {String} objectId - ID de l'objet cliqué
- * @param {Object} splineApp - Instance Spline
- * @returns {Boolean} - true si l'objet est un tiroir de prestation
- */
-const handlePrestaDrawerClick = useCallback((objectId, splineApp) => {
-  // Obtenir la configuration du tiroir à partir de l'ID d'objet
-  const drawerConfig = getDrawerForObjectId(objectId);
-  
-  if (drawerConfig) {
-    // Associer le contenu de prestation au type
-    const contentComponents = {
-      "DataVizContent": <DataVizContent />,
-      "SearchEngineContent": <SearchEngineContent />,
-      "Model3DContent": <Model3DContent />,
-      "AppDevContent": <AppDevContent />
-    };
+   */
+  const handlePrestaButtonClick = useCallback((objectId, splineApp) => {
+    // Obtenir la configuration du bouton à partir de l'ID
+    const prestaConfig = getDrawerForObjectId(objectId);
     
-    // Définir le contenu et le titre
-    setPrestationTitle(drawerConfig.title);
-    setPrestationContent(contentComponents[drawerConfig.contentType] || null);
-    setShowPrestationOverlay(true);
-    setActiveDrawerId(drawerConfig.id);
+    if (prestaConfig) {
+      // Stocker explicitement les coordonnées actuelles de la caméra
+      if (splineSceneRef.current) {
+        const camera = splineSceneRef.current.getSplineInstance().camera;
+        if (camera) {
+          setLastCameraPosition({
+            position: {
+              x: camera.position.x,
+              y: camera.position.y,
+              z: camera.position.z
+            },
+            rotation: {
+              x: camera.rotation.x,
+              y: camera.rotation.y,
+              z: camera.rotation.z
+            }
+          });
+        }
+      }
+      
+      // Associer le contenu de prestation au type
+      const contentComponents = {
+        "DataVizContent": <DataVizContent />,
+        "SearchEngineContent": <SearchEngineContent />,
+        "Model3DContent": <Model3DContent />,
+        "AppDevContent": <AppDevContent />
+      };
+      
+      // Définir le contenu et le titre
+      setPrestationTitle(prestaConfig.title);
+      setPrestationContent(contentComponents[prestaConfig.contentType] || null);
+      setShowPrestationOverlay(true);
+      
+      // Afficher le bouton de retour
+      setShowReturnButton(true);
+      
+      return true;
+    }
     
-    return true;
-  }
-  
-  return false;
-}, []);
+    return false;
+  }, []);
   
   /**
-   * Fonction commune pour animer la caméra vers une position
-   * @param {String} viewName - Nom de la vue
-   * @param {String} buttonId - ID du bouton associé
-   * @param {Boolean} showButton - Indique si le bouton de retour doit être affiché
+   * Animation de la caméra vers une position spécifique
    */
   const animateCameraToView = useCallback((viewName, buttonId, showButton = true) => {
     if (!splineSceneRef.current) return;
@@ -312,7 +476,7 @@ const handlePrestaDrawerClick = useCallback((objectId, splineApp) => {
     if (!splineApp) return;
     
     try {
-      // Récupérer la configuration complète de la vue pour obtenir le préfixe correct
+      // Récupérer la configuration de la vue
       const viewConfig = VIEW_MAPPINGS[viewName];
       
       if (!viewConfig) {
@@ -324,7 +488,7 @@ const handlePrestaDrawerClick = useCallback((objectId, splineApp) => {
       const cameraPrefix = viewConfig.cameraVariablePrefix || viewName;
       logger.log(`Animation vers la vue: ${viewName}, préfixe: ${cameraPrefix}`);
       
-      // Extraire les paramètres de caméra avec le préfixe correct
+      // Extraire les paramètres de caméra
       const cameraParams = cameraUtils.extractCameraParameters(splineApp, cameraPrefix);
       
       if (cameraParams) {
@@ -333,11 +497,11 @@ const handlePrestaDrawerClick = useCallback((objectId, splineApp) => {
           setShowMobileGuide(false);
         }
         
-        // Utiliser la fonction animateCamera accessible via la ref
+        // Animer la caméra
         splineSceneRef.current.animateCamera({
           position: cameraParams.position,
           rotation: cameraParams.rotation,
-          duration: isMobile ? 1500 : 2000 // Animation plus rapide sur mobile
+          duration: isMobile ? 1500 : 2000
         });
         
         // Mettre à jour l'état du bouton actif
@@ -350,7 +514,7 @@ const handlePrestaDrawerClick = useCallback((objectId, splineApp) => {
           }, isMobile ? 1500 : 2000);
         }
       } else {
-        logger.error(`Paramètres de caméra non trouvés pour la vue: ${viewName} avec préfixe: ${cameraPrefix}`);
+        logger.error(`Paramètres de caméra non trouvés pour la vue: ${viewName}`);
       }
     } catch (error) {
       logger.error(`Erreur lors de l'animation de la caméra pour ${viewName}:`, error);
@@ -359,12 +523,11 @@ const handlePrestaDrawerClick = useCallback((objectId, splineApp) => {
   
   /**
    * Gère la navigation depuis la barre d'outils
-   * @param {String} view - Nom de la vue
    */
   const handleToolbarNavigation = useCallback((view) => {
     logger.log(`Navigation vers la vue: ${view}`);
     
-    // Si un overlay est ouvert, on le ferme
+    // Fermer les overlays
     setShowAboutOverlay(false);
     if (showPrestationOverlay) {
       handleClosePrestationOverlay();
@@ -372,7 +535,7 @@ const handlePrestaDrawerClick = useCallback((objectId, splineApp) => {
     
     // Obtenir l'instance Spline
     if (splineSceneRef.current) {
-      // Capturer les positions actuelles de la caméra avant toute animation
+      // Capturer les positions actuelles de la caméra
       splineSceneRef.current.handleButtonClick();
       
       // Obtenir la configuration de vue
@@ -384,7 +547,7 @@ const handlePrestaDrawerClick = useCallback((objectId, splineApp) => {
         
         // Actions spéciales pour certaines vues
         if (view === 'about') {
-          // Afficher l'overlay About après l'animation de la caméra
+          // Afficher l'overlay About après l'animation
           setTimeout(() => {
             setShowAboutOverlay(true);
           }, isMobile ? 1500 : 2000);
@@ -395,24 +558,19 @@ const handlePrestaDrawerClick = useCallback((objectId, splineApp) => {
   
   /**
    * Gère les clics sur les objets de la scène
-   * @param {String} objectName - Nom de l'objet cliqué
-   * @param {Object} splineApp - Instance Spline
    */
   const handleObjectClick = useCallback((objectName, splineApp, objectId = null) => {
-    // Obtenir l'ID de l'objet si non fourni
+    // Obtenir l'ID de l'objet
     const resolvedObjectId = objectId || getObjectId(objectName);
     
-    // Vérifier si c'est le bouton portfolio
-    const isPortfolioButton = (objectName === 'BUTTON_PORTFOLIO' || objectName.includes('BUTTON_PORTFOLIO')) && 
+    // Identifier les types d'objets spéciaux
+    const isPortfolioButton = (objectName === 'BUTTON_PORTFOLIO' || 
+      objectName.includes('BUTTON_PORTFOLIO')) && 
       resolvedObjectId === BUTTON_IDS.PORTFOLIO;
-  
-    // Si c'est le bouton portfolio, définir immédiatement le flag
-    if (isPortfolioButton) {
-      logger.log("Mode portfolio activé");
-      window.__portfolioMode = true;
-      window.__preventCameraReset = true; // Empêcher tout reset automatique
-    }
-    
+
+    const isPortfolioDoorObj = objectName === 'PORTE_OUVERT' || 
+      objectName.includes('PORTE_OUVERT');
+
     logger.log("Objet cliqué:", objectName, "ID:", resolvedObjectId);
     
     // Masquer le guide mobile après la première interaction
@@ -423,80 +581,75 @@ const handlePrestaDrawerClick = useCallback((objectId, splineApp) => {
     // Déterminer le type d'objet
     const objectType = getObjectType(resolvedObjectId, objectName);
     
-      
     // Gérer les clics sur les tiroirs de prestation
-    const isPrestaDrawer = handlePrestaDrawerClick(resolvedObjectId, splineApp);
+    const isPrestaDrawer = handlePrestaButtonClick(resolvedObjectId, splineApp);
     if (isPrestaDrawer) return;
     
-    // Déterminer la vue cible à partir de l'ID de l'objet
+    // Déterminer la vue cible
     const viewConfig = getViewForObjectId(resolvedObjectId);
     
     // S'il y a une configuration de vue
-    window.__preventCameraReset = false;
-
     if (viewConfig) {
-      logger.log("Configuration de vue trouvée:", {
-        viewName: viewConfig.viewName,
-        buttonId: viewConfig.buttonId,
-        cameraPrefix: viewConfig.cameraVariablePrefix
-      });
+      logger.log("Configuration de vue trouvée:", viewConfig);
       
-      // Vérifier si c'est la porte portfolio ou le bouton portfolio
-      const isPortfolioDoorObj = isPortfolioDoor(resolvedObjectId, objectName);
-            
       // Traitement spécial pour certaines vues
       if (viewConfig.viewName === 'about') {
-        // Afficher l'overlay About après l'animation de la caméra
+        // Afficher l'overlay About après l'animation
         setTimeout(() => {
           setShowAboutOverlay(true);
         }, isMobile ? 1500 : 2000);
       }
       
-      // Gestion spéciale pour le portfolio (porte et bouton)
+      // Gestion spéciale pour le portfolio
       if (viewConfig.viewName === 'portfolio') {
-        // Traitement spécial pour le bouton portfolio
         if (isPortfolioButton) {
           logger.log("Traitement spécial pour le bouton portfolio");
           
+          // Marquer que le bouton portfolio a été cliqué
+          portfolioButtonClickedRef.current = true;
+          window.__manualPortfolioButtonClick = true;
+
+          doorHasBeenOpenedOnce.current = true;
+          window.__doorIsOpen = true; 
+          
+          // Réinitialiser le flag après un délai
+          setTimeout(() => {
+            portfolioButtonClickedRef.current = false;
+          }, 5000);
+          
           // Animer la caméra sans sauvegarder l'état précédent
           if (splineSceneRef.current) {
-            // Extraire directement les paramètres de caméra pour le portfolio
             const portfolioParams = cameraUtils.extractCameraParameters(splineApp, 'portfolio');
             
             if (portfolioParams) {
-              // Ne PAS appeler handleButtonClick ici - très important
-              logger.log("Animation directe vers le portfolio sans sauvegarde d'état");
+              const success = splineSceneRef.current.moveToPortfolioView(portfolioParams);
               
-              // Animation directe vers la position avec l'option pour empêcher le reset
-              splineSceneRef.current.animateCamera({
-                position: portfolioParams.position,
-                rotation: portfolioParams.rotation,
-                duration: isMobile ? 1500 : 2000,
-                preventAutoReset: true // Option clé pour empêcher le reset automatique
-              });
-              
-              // Désactiver explicitement toute fonction de rappel automatique
-              clearTimeout(window.__portfolioResetTimeout);
-              
-              // Mettre à jour l'état de l'UI
-              setActiveButtonId(BUTTON_IDS.PORTFOLIO);
-              
-              // Ne pas montrer le bouton de retour
-              setShowReturnButton(false);
-            } else {
-              logger.error("Paramètres de caméra non trouvés pour le portfolio");
+              if (success) {
+                setActiveButtonId(BUTTON_IDS.PORTFOLIO);
+                setShowReturnButton(false);
+              }
             }
           }
+          return;
         } 
-        // Autres cas (comme la porte portfolio)
-        else {
-          const showReturnBtn = !isPortfolioDoorObj && !isPortfolioButton;
-          
-          if (!isPortfolioDoorObj) {
-            splineSceneRef.current.handleButtonClick();
+        // Gestion de la porte portfolio (clic manuel)
+        else if (isPortfolioDoorObj) {
+          // Vérifier si la porte est déjà ouverte
+          if (window.__doorIsOpen === true || doorHasBeenOpenedOnce.current) {
+            logger.log("La porte est déjà ouverte, le clic est ignoré");
+            return;
           }
-            
-          animateCameraToView(viewConfig.viewName, viewConfig.buttonId, showReturnBtn);
+          
+          // Si ce n'est pas un déclenchement automatique, marquer la porte comme ouverte
+          if (!window.__automaticDoorOpening && !window.__doorThresholdTriggered) {
+            window.__doorIsOpen = true;
+            doorHasBeenOpenedOnce.current = true;
+            doorIsOpenRef.current = true;
+            console.log("FLAG PORTE OUVERTE ACTIVÉ (clic manuel)");
+            logger.log("Clic manuel sur la porte portfolio");
+          }
+          
+          return;
         }
       } else {
         // Cas standard pour les autres vues
@@ -505,10 +658,9 @@ const handlePrestaDrawerClick = useCallback((objectId, splineApp) => {
         }
         animateCameraToView(viewConfig.viewName, viewConfig.buttonId, true);
       }
-  
     }
-  }, [navigate, handlePrestaDrawerClick, animateCameraToView, isMobile, showMobileGuide]);
-  
+  }, [handlePrestaButtonClick, animateCameraToView, isMobile, showMobileGuide]);
+
   /**
    * Modifie le niveau de qualité
    */
@@ -530,7 +682,6 @@ const handlePrestaDrawerClick = useCallback((objectId, splineApp) => {
   // Effet pour attacher les contrôles tactiles
   useEffect(() => {
     if (isMobile || isTablet) {
-      // Attacher les contrôles tactiles à l'élément racine
       const rootElement = document.getElementById('root');
       if (rootElement) {
         const cleanup = attachTouchListeners(rootElement);
@@ -538,19 +689,17 @@ const handlePrestaDrawerClick = useCallback((objectId, splineApp) => {
       }
     }
   }, [isMobile, isTablet, attachTouchListeners]);
-  
-    
-  // Si l'appareil est détecté comme trop peu puissant, afficher l'expérience allégée
+      
+  // Si l'appareil est trop peu puissant, afficher l'expérience allégée
   const preferFullExperience = localStorage.getItem('preferFullExperience') === 'true';
-if (isLowPerformance && !preferFullExperience) {
+  if (isLowPerformance && !preferFullExperience) {
     return (
       <LiteExperience 
         onNavigate={handleToolbarNavigation}
         onEnterFullExperience={() => {
-          // Définir un niveau de qualité bas et forcer le passage à l'expérience complète
+          // Définir un niveau de qualité bas et forcer l'expérience complète
           setQualityLevel('low');
           
-          // Utiliser localStorage pour marquer que l'utilisateur a choisi l'expérience complète
           try {
             localStorage.setItem('preferFullExperience', 'true');
             console.log("Préférence d'expérience complète enregistrée");
@@ -558,10 +707,9 @@ if (isLowPerformance && !preferFullExperience) {
             console.error("Erreur lors de l'enregistrement de la préférence:", e);
           }
           
-          // Forcer un rechargement pour appliquer les changements
-          // Utiliser setTimeout pour s'assurer que le localStorage est bien enregistré
+          // Forcer un rechargement
           setTimeout(() => {
-            window.location.href = window.location.pathname; // Forcer le rechargement sans paramètres
+            window.location.href = window.location.pathname;
           }, 100);
         }}
       />
@@ -598,7 +746,7 @@ if (isLowPerformance && !preferFullExperience) {
         />
       )}
       
-      {/* Affichage de l'overlay About */}
+      {/* Overlays */}
       {showAboutOverlay && (
         <AboutOverlay 
           onClose={handleCloseAboutOverlay}
@@ -606,7 +754,6 @@ if (isLowPerformance && !preferFullExperience) {
         />
       )}
       
-      {/* Affichage de l'overlay Prestation */}
       {showPrestationOverlay && (
         <PrestationOverlay 
           title={prestationTitle}
@@ -615,6 +762,14 @@ if (isLowPerformance && !preferFullExperience) {
           isMobile={isMobile}
         />
       )}
+
+      {/* Nouvel overlay de bienvenue - AJOUTEZ CETTE SECTION ICI */}
+    {showWelcomeOverlay && (
+      <WelcomeOverlay 
+        onClose={() => setShowWelcomeOverlay(false)}
+        autoHideTime={15000} // 15 secondes avant disparition automatique
+      />
+    )}
       
       {/* Guide de swipe sur mobile */}
       {(isMobile || isTablet) && showMobileGuide && (
@@ -663,37 +818,13 @@ if (isLowPerformance && !preferFullExperience) {
         </div>
       )}
 
-      {/* Sélecteur de qualité pour les appareils mobiles */}
-{(isMobile || isTablet) && (
-  <div className="quality-toggle">
-    <button 
-      className={qualityLevel === 'low' ? 'active' : ''}
-      onClick={() => handleQualityChange('low')}
-    >
-      Basse
-    </button>
-    <button 
-      className={qualityLevel === 'medium' ? 'active' : ''}
-      onClick={() => handleQualityChange('medium')}
-    >
-      Moyenne
-    </button>
-    <button 
-      className={qualityLevel === 'high' ? 'active' : ''}
-      onClick={() => handleQualityChange('high')}
-    >
-      Haute
-    </button>
-  </div>
-)}
-
-{/* Overlay d'orientation initial - AJOUTER CE BLOC */}
-{(isMobile || isTablet) && showInitialOrientationOverlay && (
-  <InitialOrientationOverlay 
-    onClose={() => setShowInitialOrientationOverlay(false)}
-    autoHideTime={10000} // 10 secondes avant disparition automatique
-  />
-)}
+      {/* Overlay d'orientation initial */}
+      {(isMobile || isTablet) && showInitialOrientationOverlay && (
+        <InitialOrientationOverlay 
+          onClose={() => setShowInitialOrientationOverlay(false)}
+          autoHideTime={10000} // 10 secondes avant disparition automatique
+        />
+      )}
     </div>
   );
 }

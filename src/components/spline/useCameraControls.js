@@ -5,6 +5,8 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import cameraUtils from '../../utils/cameraUtils';
 import debugUtils from '../../utils/debugUtils';
+import splineHelpers from '../../utils/splineHelpers';
+import { BUTTON_IDS, OBJECT_IDS } from '../../constants/ids';
 
 const { logger } = debugUtils;
 
@@ -15,7 +17,7 @@ const { logger } = debugUtils;
  * @returns {Object} - Fonctions et états pour la gestion de la caméra
  */
 export default function useCameraControls(cameraRef, splineRef) {
-  // État pour activer/désactiver les contrôles
+  // État pour activer/désactiver les contButton_rôles
   const [controlsEnabled, setControlsEnabled] = useState(true);
   
   // Références pour les positions et rotations
@@ -38,6 +40,7 @@ export default function useCameraControls(cameraRef, splineRef) {
   
   // Flag pour la zone terrasse (sans rotation)
   const isOnTerrace = useRef(true);
+  const doorOpenedRecently = useRef(false);
   
   // Configuration du mouvement de la caméra
   const config = {
@@ -47,7 +50,8 @@ export default function useCameraControls(cameraRef, splineRef) {
     scrollSpeed: 2500,         // Vitesse de défilement
     centerWidthZone: 0.5,      // Zone centrale horizontale où le mouvement vertical est permis
     maxSideRotation: 1.2,      // Rotation horizontale maximale (environ 69 degrés)
-    maxVerticalAngle: 0.3      // Rotation verticale maximale (environ 17 degrés)
+    maxVerticalAngle: 0.3 ,     // Rotation verticale maximale (environ 17 degrés)
+    terraceSpeedMultiplier: 3.0
   };
 
   const handlePortfolioButtonClick = useCallback(() => {
@@ -122,70 +126,113 @@ export default function useCameraControls(cameraRef, splineRef) {
         // Limites de la pièce
         const limits = cameraUtils.getCameraLimits();
         
+// Définir un seuil avancé pour l'ouverture de la porte
+const doorOpeningThreshold = limits.doorTrigger + 500; // Ajustez cette valeur (-50) selon vos besoins
+
+// Vérification pour l'ouverture anticipée de la porte
+if (isOnTerrace.current && 
+  currentPos.z <= doorOpeningThreshold && 
+  currentPos.z > limits.doorThreshold &&
+  !doorOpenedRecently.current &&
+   !window.__doorIsOpen && 
+  !window.__doorThresholdTriggered) {
+
+  // Ouvrir la porte en avance
+  if (splineRef.current) {
+    // Marquer l'ouverture comme automatique (si ce n'est pas déjà fait)
+    if (!window.__automaticDoorOpening) {
+      window.__automaticDoorOpening = true;
+      window.__doorThresholdTriggered = true;
+      doorOpenedRecently.current = true;
+      window.__doorIsOpen = true;
+      
+      // Émettre l'événement mouseUp sur l'objet PORTE_OUVERT (pas le bouton)
+      try {
+        splineHelpers.emitEvent(splineRef.current, 'mouseUp', OBJECT_IDS.PORTE_OUVERT);
+        logger.log("Ouverture anticipée de la porte avant le passage du seuil");
+      } catch (error) {
+        logger.error("Erreur lors de l'ouverture anticipée:", error);
+      }
+      
+      // Réinitialiser les flags après un délai
+      setTimeout(() => {
+        window.__automaticDoorOpening = false;
+        window.__doorThresholdTriggered = false;
+      
+      // Ajouter un délai supplémentaire avant de permettre une nouvelle ouverture
+      setTimeout(() => {
+        doorOpenedRecently.current = false;
+      }, 3000);
+    }, 1000);
+    }
+  }
+}
+
         // Vérification de la position Z pour détecter le passage de la porte
         if (isOnTerrace.current) {
           // Passage de la terrasse à l'intérieur
           if (currentPos.z <= limits.doorThreshold) {
             isOnTerrace.current = false;
             logger.log("Entrée dans le chalet - rotation activée");
-          }
+
+         }
         } else if (!isOnTerrace.current && currentPos.z > limits.doorThreshold) {
           // Passage de l'intérieur à la terrasse
           isOnTerrace.current = true;
           
           // Remettre la caméra droite lorsqu'on sort
           if (!window.matchMedia('(pointer: coarse)').matches) {
-          const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
-          targetRotation.current.y = baseAngle;
-          targetRotation.current.x = 0;
-          
-          // Réinitialiser les décalages X et Y
-          targetPosition.current.x = initialPosition.current.x;
-          targetPosition.current.y = initialPosition.current.y;
-          
-          logger.log("Sortie sur la terrasse - rotation désactivée");
+            const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
+            targetRotation.current.y = baseAngle;
+            targetRotation.current.x = 0;
+            
+            // Réinitialiser les décalages X et Y
+            targetPosition.current.x = initialPosition.current.x;
+            targetPosition.current.y = initialPosition.current.y;
+            
+            logger.log("Sortie sur la terrasse - rotation désactivée");
+          }
         }
-      }
         
         // Appliquer un mouvement fluide à la position Z (avancer/reculer)
-const dz = targetPosition.current.z - currentPos.z;
-currentPos.z += dz * config.smoothFactor;
+        const dz = targetPosition.current.z - currentPos.z;
+        currentPos.z += dz * config.smoothFactor;
 
-// Détecter si c'est un appareil tactile
-const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+        // Détecter si c'est un appareil tactile
+        const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
 
-// Sur la terrasse avec ordinateur, désactiver la rotation
-if (isOnTerrace.current && !isTouchDevice) {
-  // Ne pas appliquer de rotation, mais recentrer progressivement
-  const returnFactor = config.smoothFactor;
-  
-  // Recentrage de la position horizontale
-  currentPos.x += (initialPosition.current.x - currentPos.x) * returnFactor;
-  currentPos.y += (initialPosition.current.y - currentPos.y) * returnFactor;
-  
-  // Rétablir la rotation neutre
-  const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
-  currentRot.x += (0 - currentRot.x) * returnFactor;
-  currentRot.y += (baseAngle - currentRot.y) * returnFactor;
-} else {
-  // Dans tous les autres cas (intérieur OU tactile), permettre la rotation normale
-  // Léger décalage de position X et Y
-  const dx = targetPosition.current.x - currentPos.x;
-  const dy = targetPosition.current.y - currentPos.y;
-  
-  currentPos.x += dx * config.smoothFactor;
-  currentPos.y += dy * config.smoothFactor;
-  
-  // Appliquer les rotations de manière fluide
-  const drx = targetRotation.current.x - currentRot.x;
-  const dry = targetRotation.current.y - currentRot.y;
-  
-  currentRot.x += drx * config.smoothFactor;
-  currentRot.y += dry * config.smoothFactor;
-}
+        // Sur la terrasse avec ordinateur, désactiver la rotation
+        if (isOnTerrace.current && !isTouchDevice) {
+          // Ne pas appliquer de rotation, mais recentrer progressivement
+          const returnFactor = config.smoothFactor;
+          
+          // Recentrage de la position horizontale
+          currentPos.x += (initialPosition.current.x - currentPos.x) * returnFactor;
+          currentPos.y += (initialPosition.current.y - currentPos.y) * returnFactor;
+          
+          // Rétablir la rotation neutre
+          const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
+          currentRot.x += (0 - currentRot.x) * returnFactor;
+          currentRot.y += (baseAngle - currentRot.y) * returnFactor;
+        } else {
+          // Dans tous les autres cas (intérieur OU tactile), permettre la rotation normale
+          // Léger décalage de position X et Y
+          const dx = targetPosition.current.x - currentPos.x;
+          const dy = targetPosition.current.y - currentPos.y;
+          
+          currentPos.x += dx * config.smoothFactor;
+          currentPos.y += dy * config.smoothFactor;
+          
+          // Appliquer les rotations de manière fluide
+          const drx = targetRotation.current.x - currentRot.x;
+          const dry = targetRotation.current.y - currentRot.y;
+          
+          currentRot.x += drx * config.smoothFactor;
+          currentRot.y += dry * config.smoothFactor;
+        }
 
-// Maintenir toujours la rotation Z à 0 pour éviter l'inclinaison
-currentRot.z = 0;
+        // Maintenir toujours la rotation Z à 0 pour éviter l'inclinaison
+        currentRot.z = 0;
       }
       
       animationFrameRef.current = requestAnimationFrame(animate);
@@ -198,17 +245,36 @@ currentRot.z = 0;
    * Inverse la direction de déplacement
    */
   const invertMovementDirection = useCallback(() => {
+    // Inverser la direction
     movementDirection.current = -movementDirection.current;
     
-    // Pivoter la caméra à 180° lorsqu'on change de direction
-    if (movementDirection.current < 0) {
-      // Vers l'arrière (rotation à 180° autour de Y)
-      targetRotation.current.y = Math.PI;
-    } else {
-      // Vers l'avant (rotation à 0° autour de Y)
-      targetRotation.current.y = 0;
+    // Position actuelle de la caméra
+    if (cameraRef.current) {
+      // Stopper momentanément le mouvement en Z en synchronisant la cible avec la position actuelle
+      targetPosition.current.z = cameraRef.current.position.z;
+      
+      // Pivoter la caméra à 180° lorsqu'on change de direction
+      if (movementDirection.current < 0) {
+        // Vers l'arrière (rotation à 180° autour de Y)
+        targetRotation.current.y = Math.PI;
+      } else {
+        // Vers l'avant (rotation à 0° autour de Y)
+        targetRotation.current.y = 0;
+      }
+      
+      // Ajouter une brève "pause" dans le mouvement pour accentuer le demi-tour
+      const currentPosition = { ...targetPosition.current };
+      
+      // Définir un petit délai pour permettre à la rotation de s'effectuer avant de reprendre le mouvement
+      setTimeout(() => {
+        // Après la rotation, reprendre le mouvement dans la nouvelle direction
+        // mais uniquement si les contrôles sont toujours activés
+        if (controlsEnabled && !isAfterButtonClick.current) {
+          targetPosition.current = currentPosition;
+        }
+      }, 300); // Délai de 300ms pour la rotation
     }
-  }, []);
+  }, [controlsEnabled]);
   
   /**
    * Gère le défilement de la souris pour avancer/reculer
@@ -217,23 +283,31 @@ currentRot.z = 0;
   const handleWheel = useCallback((e) => {
     if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
     
-    // Sensibilité du défilement augmentée
-    let delta = e.deltaY * 0.05 * config.scrollSpeed;
+    // Position actuelle
+    const currentZ = cameraRef.current.position.z;
     
-    // Limiter la vitesse maximale
-    delta = cameraUtils.clamp(delta, -200, 200);
+    // Limites de la pièce
+    const limits = cameraUtils.getCameraLimits();
+    
+    // Déterminer si on est sur la terrasse
+    const onTerrace = currentZ > limits.doorThreshold;
+    
+    // Sensibilité du défilement adaptée selon la position
+    // Augmenter la sensibilité sur la terrasse
+    let sensitivityMultiplier = onTerrace ? 1.8 : 1.0;
+    
+    // Calcul du delta avec sensibilité adaptée
+    let delta = e.deltaY * 0.05 * config.scrollSpeed * sensitivityMultiplier;
+    
+    // Limiter la vitesse maximale (augmentée sur la terrasse)
+    const maxSpeed = onTerrace ? 400 : 200;
+    delta = cameraUtils.clamp(delta, -maxSpeed, maxSpeed);
     
     // Appliquer la direction de mouvement actuelle
     delta *= movementDirection.current;
     
-    // Position actuelle
-    const currentZ = cameraRef.current.position.z;
-    
     // Nouvelle position potentielle
     const newZ = currentZ + delta;
-    
-    // Limites de la pièce
-    const limits = cameraUtils.getCameraLimits();
     
     // Vérifier les limites et inverser la direction si nécessaire
     if (newZ <= limits.minZ) {
@@ -255,7 +329,6 @@ currentRot.z = 0;
       targetPosition.current.z = newZ;
     }
   }, [controlsEnabled, invertMovementDirection]);
-  
   /**
    * Gère le mouvement de la souris pour orienter la caméra
    * @param {MouseEvent} e - Événement de mouvement de souris
@@ -263,13 +336,13 @@ currentRot.z = 0;
   const handleMouseMove = useCallback((e) => {
     if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
     
-  // Détecter si l'événement vient d'un appareil tactile
-  const isTouchEvent = e.isTouchEvent === true;
-  
-  // Ignorer le mouvement de souris sur la terrasse SAUF pour les événements tactiles
-  if (isOnTerrace.current && !isTouchEvent) {
-    return;
-  }
+    // Détecter si l'événement vient d'un appareil tactile
+    const isTouchEvent = e.isTouchEvent === true;
+    
+    // Ignorer le mouvement de souris sur la terrasse SAUF pour les événements tactiles
+    if (isOnTerrace.current && !isTouchEvent) {
+      return;
+    }
     
     // Normaliser la position de la souris entre -1 et 1
     const x = e.normalizedX || (e.clientX / window.innerWidth) * 2 - 1;
@@ -358,24 +431,13 @@ currentRot.z = 0;
    * @param {Number} animationDuration - Durée de l'animation en ms
    */
   const restorePreviousCameraState = useCallback((animationDuration = 2000) => {
-    // Vérifier explicitement si nous sommes en mode portfolio
-  if (window.__portfolioMode === true) {
-    logger.log("Restauration en mode portfolio - réactivation simple des contrôles");
-          // Réactiver les contrôles mais sans restaurer l'état
-    setControlsEnabled(true);
-    isAfterButtonClick.current = false;
-
-    window.__portfolioMode = false;
-    return;
+    // Cas standard - il nous faut un état précédent et une référence à la caméra
+    if (!cameraRef.current || !previousCameraState.current) {
+      logger.log("Pas d'état précédent à restaurer, réactivation simple des contrôles");
+      setControlsEnabled(true);
+      isAfterButtonClick.current = false;
+      return;
     }
-  
-      // Cas standard - il nous faut un état précédent et une référence à la caméra
-  if (!cameraRef.current || !previousCameraState.current) {
-    logger.log("Pas d'état précédent à restaurer, réactivation simple des contrôles");
-    setControlsEnabled(true);
-    isAfterButtonClick.current = false;
-    return;
-  }
     
     const camera = cameraRef.current;
     const prevState = previousCameraState.current;
@@ -439,6 +501,163 @@ currentRot.z = 0;
     animateReturn();
   }, []);
   
+  /**
+   * Déplace la caméra d'une certaine distance
+   * @param {Number} distance - Distance de déplacement
+   */
+  const moveCamera = useCallback((distance) => {
+    if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
+    
+    // Position actuelle
+    const currentZ = cameraRef.current.position.z;
+    
+    // Limites de la pièce
+    const limits = cameraUtils.getCameraLimits();
+    
+    // Déterminer si on est sur la terrasse
+    const onTerrace = currentZ > limits.doorThreshold;
+    
+    // Ajuster la distance selon la position (terrasse ou intérieur)
+    const terraceMultiplier = 1.8;
+    const adjustedDistance = onTerrace ? distance * terraceMultiplier : distance;
+    
+    // Appliquer la direction de mouvement actuelle
+    const finalDistance = adjustedDistance * movementDirection.current;
+    
+    // Nouvelle position potentielle
+    const newZ = currentZ + finalDistance;
+    
+    // Vérifier les limites et inverser la direction si nécessaire
+    if (newZ <= limits.minZ) {
+      targetPosition.current.z = limits.minZ;
+      
+      // Inverser la direction à la limite avant
+      if (finalDistance < 0) {
+        invertMovementDirection();
+      }
+    } else if (newZ >= limits.maxZ) {
+      targetPosition.current.z = limits.maxZ;
+      
+      // Inverser la direction à la limite arrière
+      if (finalDistance > 0) {
+        invertMovementDirection();
+      }
+    } else {
+      // Déplacement normal dans les limites
+      targetPosition.current.z = newZ;
+    }
+  }, [controlsEnabled, invertMovementDirection]);
+  
+  /**
+   * Déplace la caméra vers une position sans sauvegarder l'état actuel
+   * Spécialement utile pour les vues comme le portfolio où on ne veut pas revenir
+   * @param {Object} position - Position cible {x, y, z}
+   * @param {Object} rotation - Rotation cible {x, y, z}
+   * @returns {Boolean} - true si l'animation a commencé
+   */
+  const directCameraMovement = useCallback((position, rotation) => {
+    if (!cameraRef.current) {
+      logger.warn("Impossible de déplacer la caméra: référence caméra manquante");
+      return false;
+    }
+    
+    logger.log("Déplacement direct de la caméra sans sauvegarde d'état", {
+      position,
+      rotation
+    });
+    
+    // Position actuelle comme point de départ de l'animation
+    const startPosition = {
+      x: cameraRef.current.position.x,
+      y: cameraRef.current.position.y,
+      z: cameraRef.current.position.z
+    };
+    
+    const startRotation = {
+      x: cameraRef.current.rotation.x,
+      y: cameraRef.current.rotation.y,
+      z: cameraRef.current.rotation.z
+    };
+    
+    // Animation fluide vers la position cible
+    const startTime = Date.now();
+    const duration = 2000; // 2 secondes
+    
+    const animateDirect = () => {
+      if (!cameraRef.current) return;
+      
+      const elapsedTime = Date.now() - startTime;
+      const progress = Math.min(elapsedTime / duration, 1);
+      
+      // Fonction d'easing
+      const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+      const easedProgress = easeOutCubic(progress);
+      
+      // Interpoler la position
+      cameraRef.current.position.x = startPosition.x + (position.x - startPosition.x) * easedProgress;
+      cameraRef.current.position.y = startPosition.y + (position.y - startPosition.y) * easedProgress;
+      cameraRef.current.position.z = startPosition.z + (position.z - startPosition.z) * easedProgress;
+      
+      // Interpoler la rotation
+      cameraRef.current.rotation.x = startRotation.x + (rotation.x - startRotation.x) * easedProgress;
+      cameraRef.current.rotation.y = startRotation.y + (rotation.y - startRotation.y) * easedProgress;
+      cameraRef.current.rotation.z = 0; // Toujours garder Z à 0
+      
+      // Mettre à jour également les positions/rotations cibles
+      targetPosition.current = {
+        x: cameraRef.current.position.x,
+        y: cameraRef.current.position.y,
+        z: cameraRef.current.position.z
+      };
+      
+      targetRotation.current = {
+        x: cameraRef.current.rotation.x,
+        y: cameraRef.current.rotation.y,
+        z: 0
+      };
+      
+      // Continuer l'animation si nécessaire
+      if (progress < 1) {
+        requestAnimationFrame(animateDirect);
+      } else {
+        // Animation terminée
+        logger.log("Déplacement direct terminé");
+        
+        // Ne pas modifier les drapeaux isAfterButtonClick ou controlsEnabled
+        // pour que l'utilisateur puisse toujours interagir
+      }
+    };
+    
+    // Démarrer l'animation
+    requestAnimationFrame(animateDirect);
+    return true;
+  }, []);
+  
+  const toggleControls = useCallback((enabled) => {
+    // Activer ou désactiver les contrôles
+    setControlsEnabled(enabled);
+    isAfterButtonClick.current = !enabled;
+    
+    // Si on active les contrôles, réinitialiser également l'état précédent
+    if (enabled) {
+      previousCameraState.current = null;
+    }
+    
+    logger.log(`Contrôles de caméra ${enabled ? 'activés' : 'désactivés'} sans restauration d'état`);
+  }, []);
+
+  const restoreControlsOnly = useCallback(() => {
+    // Réactiver les contrôles simplement
+    logger.log("Réactivation simple des contrôles sans restauration de position");
+    setControlsEnabled(true);
+    isAfterButtonClick.current = false;
+    
+    // Effacer l'état précédent pour éviter qu'il soit restauré plus tard
+    previousCameraState.current = null;
+    
+    return true;
+  }, []);
+
   // Nettoyer la boucle d'animation quand le composant est démonté
   useEffect(() => {
     return () => {
@@ -446,44 +665,9 @@ currentRot.z = 0;
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, []);
 
-  // Ajoutez cette fonction à peu près à la ligne 413, avant le bloc "return"
-const moveCamera = useCallback((distance) => {
-  if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
-  
-  // Appliquer la direction de mouvement actuelle
-  const adjustedDistance = distance * movementDirection.current;
-  
-  // Position actuelle
-  const currentZ = cameraRef.current.position.z;
-  
-  // Nouvelle position potentielle
-  const newZ = currentZ + adjustedDistance;
-  
-  // Limites de la pièce
-  const limits = cameraUtils.getCameraLimits();
-  
-  // Vérifier les limites et inverser la direction si nécessaire
-  if (newZ <= limits.minZ) {
-    targetPosition.current.z = limits.minZ;
     
-    // Inverser la direction à la limite avant
-    if (adjustedDistance < 0) {
-      invertMovementDirection();
-    }
-  } else if (newZ >= limits.maxZ) {
-    targetPosition.current.z = limits.maxZ;
-    
-    // Inverser la direction à la limite arrière
-    if (adjustedDistance > 0) {
-      invertMovementDirection();
-    }
-  } else {
-    // Déplacement normal dans les limites
-    targetPosition.current.z = newZ;
-  }
-}, [controlsEnabled, invertMovementDirection]);
+  }, []);
   
   return {
     initializeCamera,
@@ -492,6 +676,9 @@ const moveCamera = useCallback((distance) => {
     handleButtonClick,
     restorePreviousCameraState,
     moveCamera,
+    directCameraMovement,
+    toggleControls,
+    restoreControlsOnly,
     isControlsEnabled: controlsEnabled,
     hasPreviousState: () => !!previousCameraState.current,
     isOnTerrace: () => isOnTerrace.current

@@ -30,7 +30,10 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
     handleMouseMove,
     handleButtonClick,
     restorePreviousCameraState,
-    moveCamera,  // Utiliser moveCamera du hook useCameraControls
+    moveCamera,
+    directCameraMovement,
+    toggleControls,
+    restoreControlsOnly,
     isControlsEnabled,
     hasPreviousState
   } = useCameraControls(cameraRef, splineRef);
@@ -58,22 +61,17 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
       preventAutoReset: preventAutoReset
     });
     
-    // Si preventAutoReset est activé, marquer que cette animation ne doit pas être réinitialisée
-    if (preventAutoReset) {
-      window.__preventCameraReset = true;
-    }
-    
     // Utiliser le hook d'animation pour l'animation fluide
     animateCamera(cameraRef.current, {
       position,
       rotation,
       duration,
       easing: 'easeOutCubic',
-    onComplete: () => {
-      logger.log("Animation de caméra terminée");
-    }
-  });
-};
+      onComplete: () => {
+        logger.log("Animation de caméra terminée");
+      }
+    });
+  };
   
   // Exposer les méthodes aux composants parents via ref
   useImperativeHandle(ref, () => ({
@@ -84,19 +82,34 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
     handleButtonClick,
     handleWheel, 
     handleMouseMove, 
-    restorePreviousCameraState: () => {
-      if (window.__preventCameraReset) {
-        logger.log("Annulation du retour automatique de la caméra via __preventCameraReset");
-        return;
-      }
-    
-      return restorePreviousCameraState(); // on appelle la vraie fonction du hook
-    },    
+    restorePreviousCameraState,
     hasPreviousState,
     
     // Animation de caméra
     animateCamera: handleAnimateCamera,
 
+    // Nouvelle fonction spécifique pour la vue portfolio
+    moveToPortfolioView: (portfolioParams) => {
+      if (!cameraRef.current) {
+        logger.warn("Impossible d'animer la caméra vers portfolio: référence caméra manquante");
+        return false;
+      }
+      
+      logger.log("Déplacement direct vers la vue portfolio", portfolioParams);
+      
+        // Convertir les rotations de degrés (format Spline) en radians (format Three.js/React)
+  const convertedRotation = {
+    x: portfolioParams.rotation.x * Math.PI / 180,
+    y: portfolioParams.rotation.y * Math.PI / 180,
+    z: portfolioParams.rotation.z * Math.PI / 180
+  };
+  
+  // Utiliser directCameraMovement avec rotation convertie
+  return directCameraMovement(
+    portfolioParams.position,
+    convertedRotation
+  );
+},
     
     // Exposer moveCamera pour permettre le déplacement direct
     moveCamera: (distance) => {
@@ -109,15 +122,6 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
       return true;
     },
     
-    // Ajout de la nouvelle fonction pour le bouton portfolio
-    handlePortfolioButtonClick: () => {
-      // Marquer que nous sommes en mode portfolio
-      window.__portfolioMode = true;
-      window.__preventCameraReset = true;
-      logger.log("Mode portfolio activé - prévention de reset automatique");
-      return true;
-    },
-
     // Réinitialisation de l'état de la caméra
     resetCameraState: () => {
       if (splineRef.current && lastClickedButtonRef.current) {
@@ -150,12 +154,55 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
       return false;
     },
     
-    
     // Obtenir le dernier bouton cliqué
     getLastClickedButton: () => lastClickedButtonRef.current,
     
     // Vérifier si les contrôles sont activés
-    isControlsEnabled: () => isControlsEnabled
+    isControlsEnabled: () => isControlsEnabled,
+
+    restoreControlsOnly: () => {
+      // Pas besoin de vérifier si la fonction existe, appelons-la directement
+      toggleControls(true);  // Utiliser toggleControls pour activer les contrôles
+     
+      // Réinitialiser le dernier bouton cliqué si nécessaire
+      if (splineRef.current && lastClickedButtonRef.current) {
+        try {
+          // Tenter de réinitialiser l'animation du dernier bouton cliqué
+          splineHelpers.emitEventReverse(
+            splineRef.current, 
+            'mouseUp', 
+            lastClickedButtonRef.current
+          );
+          
+          // Réinitialiser la référence
+          lastClickedButtonRef.current = null;
+        } catch (error) {
+          logger.error("Erreur lors de la réinitialisation du bouton:", error);
+        }
+      }
+      
+      return true;  // Toujours retourner true pour indiquer le succès
+    },
+
+    toggleCameraControls: (enabled) => {
+      toggleControls(enabled);
+      return true;
+    },
+
+    _setCameraControlsEnabled: (enabled) => {
+      // Utiliser les méthodes que nous avons déjà
+      if (enabled) {
+        // Si on veut activer les contrôles, utiliser la fonction restorePreviousCameraState
+        // qui réactive les contrôles sans animation
+        restorePreviousCameraState(0);
+      } else {
+        // Si on veut désactiver les contrôles, utiliser handleButtonClick
+        handleButtonClick();
+      }
+      
+      logger.log(`Contrôles de caméra ${enabled ? 'activés' : 'désactivés'} manuellement`);
+      return true;
+    }
   }));
   
   /**
@@ -218,21 +265,25 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
     const isPortfolioButton = objectId === BUTTON_IDS.PORTFOLIO && 
                            (objectName === 'BUTTON_PORTFOLIO' || objectName.includes('BUTTON_PORTFOLIO'));
   
-     // Cas particulier pour le bouton portfolio
-  if (isPortfolioButton) {
-    logger.log("Bouton portfolio détecté dans SplineScene");
-    window.__portfolioMode = true;
-    
-    lastClickedButtonRef.current = objectId;
-  }
-  // Si ce n'est pas un cas spécial, vérifier si c'est un bouton qui déclenche une animation
-  else if (!isAutomaticDoorOpening && !isPortfolioDoorObj) {
-    // Vous pouvez conserver vos patterns pour la compatibilité arrière
-    const buttonPatterns = [
-      /BUTTON_/i, /DATAVIZ/i, /3D/i, /SITE/i, /PORTE_/i, /PRESTATIONS/i, /ABOUT/i
-    ];
+    // IMPORTANT: pour le bouton portfolio, nous ne faisons rien de spécial ici 
+    // mais nous empêchons EXPLICITEMENT le comportement standard des boutons.
+    // La gestion sera faite entièrement via moveToPortfolioView
+    if (isPortfolioButton) {
+      logger.log("Bouton portfolio détecté dans SplineScene - pas de désactivation des contrôles");
       
-      // Combine à la fois la vérification par ID et par pattern
+      // TRÈS IMPORTANT: Ne pas stocker lastClickedButtonRef.current pour le portfolio
+      // car c'est ce qui est utilisé pour restaurer l'état plus tard
+      // lastClickedButtonRef.current = objectId; <-- COMMENTÉ OU SUPPRIMÉ
+      
+      // On transmet simplement l'événement au parent qui utilisera notre fonction spéciale
+    }
+    // Si ce n'est pas le bouton portfolio, gérer normalement
+    else if (!isAutomaticDoorOpening && !isPortfolioDoorObj) {
+      // Vérification des boutons comme avant
+      const buttonPatterns = [
+        /BUTTON_/i, /DATAVIZ/i, /3D/i, /SITE/i, /PORTE_/i, /PRESTATIONS/i, /ABOUT/i
+      ];
+        
       const isButton = 
         Object.values(BUTTON_IDS).includes(objectId) || 
         buttonPatterns.some(pattern => pattern.test(objectName) || pattern.test(objectUuid));
@@ -261,14 +312,10 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
   useEffect(() => {
     // Initialiser la variable globale au démarrage
     window.__automaticDoorOpening = false;
-    window.__portfolioMode = false; 
-    window.__preventCameraReset = false; // Ajouter cette ligne
     
     // Nettoyer la variable globale au démontage
     return () => {
       delete window.__automaticDoorOpening;
-      delete window.__portfolioMode;
-       delete window.__preventCameraReset; // Ajouter cette ligne
     };
   }, []);
   
