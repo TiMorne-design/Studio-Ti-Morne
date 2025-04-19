@@ -8,12 +8,11 @@ import SplineScene from '../components/spline/SplineScene';
 import AboutOverlay from '../components/overlays/AboutOverlay';
 import PrestationOverlay from '../components/overlays/PrestationOverlay';
 import WelcomeOverlay from '../components/overlays/WelcomeOverlay';
-import InitialOrientationOverlay from '../components/mobile/InitialOrientationOverlay';
+import UnifiedOrientationOverlay from '../components/mobile/UnifiedOrientationOverlay';
 import NavigationToolbar from '../components/layout/NavigationToolbar';
 import ReturnButton from '../components/common/ReturnButton';
 import MobileControls from '../components/mobile/MobileControls';
 import MobileNavigationToolbar from '../components/mobile/MobileNavigationToolbar';
-import OrientationPrompt from '../components/mobile/OrientationPrompt';
 import LiteExperience from '../components/mobile/LiteExperience';
 import { BUTTON_IDS, OBJECT_IDS } from '../constants/ids';
 import { 
@@ -68,7 +67,7 @@ export default function CabinInterior() {
   const [showPrestationOverlay, setShowPrestationOverlay] = useState(false);
   const [prestationContent, setPrestationContent] = useState(null);
   const [prestationTitle, setPrestationTitle] = useState('');
-  const [showInitialOrientationOverlay, setShowInitialOrientationOverlay] = useState(true);
+  const [showOrientationOverlay, setShowOrientationOverlay] = useState(true);
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(true);
 
   // État pour la qualité visuelle
@@ -787,12 +786,7 @@ export default function CabinInterior() {
           onMoveBackward={handleMoveBackward}
         />
       )}
-      
-      {/* Alerte d'orientation sur mobile en mode portrait */}
-      {isMobile && !isLandscape && !showInitialOrientationOverlay && (
-        <OrientationPrompt />
-      )}
-      
+        
       {/* Sélecteur de qualité pour les appareils mobiles */}
       {(isMobile || isTablet) && (
         <div className="quality-toggle">
@@ -817,13 +811,13 @@ export default function CabinInterior() {
         </div>
       )}
 
-      {/* Overlay d'orientation initial */}
-      {(isMobile || isTablet) && showInitialOrientationOverlay && (
-        <InitialOrientationOverlay 
-          onClose={() => setShowInitialOrientationOverlay(false)}
-          autoHideTime={10000} // 10 secondes avant disparition automatique
+        {(isMobile || isTablet) && !isLandscape && showOrientationOverlay && (
+        <UnifiedOrientationOverlay 
+          onClose={() => setShowOrientationOverlay(false)}
+          autoHideTime={10000}
         />
       )}
+
     </div>
   );
 }

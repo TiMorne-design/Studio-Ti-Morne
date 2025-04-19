@@ -187,9 +187,14 @@ export default function useTouchControls({
     
     stopInertia();
     
-    // Garder la même direction que le mouvement original
-    // On n'inverse pas la vélocité
-    let currentVelocity = velocity * (isSwipe ? inertiaOptions.swipeMultiplier : 1);
+    // CORRECTION: Inverser la vélocité pour le swipe
+    // Si l'utilisateur swipe de droite à gauche (vélocité négative), la caméra doit tourner vers la droite (vélocité positive)
+    let currentVelocity = -velocity; // Notez le signe négatif ici pour inverser
+    
+    // Appliquer un multiplicateur si c'est un swipe
+    if (isSwipe) {
+      currentVelocity *= inertiaOptions.swipeMultiplier;
+    }
     
     inertiaRef.current.active = true;
     
