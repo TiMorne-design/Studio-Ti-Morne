@@ -28,6 +28,8 @@ export default function useCameraControls(cameraRef, splineRef) {
   
   // Référence pour la boucle d'animation
   const animationFrameRef = useRef(null);
+
+  const hasPerformedFirstTurn = useRef(false);
   
   // Direction du mouvement (1 = avant, -1 = arrière)
   const movementDirection = useRef(1);
@@ -245,6 +247,11 @@ if (isOnTerrace.current &&
    * Inverse la direction de déplacement
    */
   const invertMovementDirection = useCallback(() => {
+    // Vérifier si on est sur la terrasse et si on n'a pas encore fait de demi-tour
+  if (isOnTerrace.current && !hasPerformedFirstTurn.current) {
+    logger.log("Demi-tour sur la terrasse bloqué - effectuez d'abord un demi-tour au fond du chalet");
+    return; // Bloquer l'inversion si on est sur la terrasse sans avoir fait le premier demi-tour
+  }
     // Inverser la direction
     movementDirection.current = -movementDirection.current;
     
@@ -262,6 +269,13 @@ if (isOnTerrace.current &&
         targetRotation.current.y = 0;
       }
       
+      // Si ce demi-tour est effectué au fond du chalet, marquer qu'on a réalisé le premier demi-tour
+    const limits = cameraUtils.getCameraLimits();
+    if (!isOnTerrace.current && cameraRef.current.position.z <= limits.minZ + 500) {
+      hasPerformedFirstTurn.current = true;
+      logger.log("Premier demi-tour effectué au fond du chalet - demi-tour sur terrasse débloqué");
+    }
+    
       // Ajouter une brève "pause" dans le mouvement pour accentuer le demi-tour
       const currentPosition = { ...targetPosition.current };
       
@@ -320,9 +334,15 @@ if (isOnTerrace.current &&
     } else if (newZ >= limits.maxZ) {
       targetPosition.current.z = limits.maxZ;
       
-      // Inverser la direction à la limite arrière
+      // Inverser la direction à la limite arrière seulement si on a déjà fait le premier demi-tour
+      // ou si on est sur la terrasse
       if (delta > 0) {
-        invertMovementDirection();
+        // Si on est sur la terrasse, ne rien faire si on n'a pas encore fait le premier demi-tour
+        if (!isOnTerrace.current || hasPerformedFirstTurn.current) {
+          invertMovementDirection();
+        } else {
+          logger.log("Limite arrière atteinte sur la terrasse - effectuez d'abord un demi-tour au fond du chalet");
+        }
       }
     } else {
       // Déplacement normal dans les limites

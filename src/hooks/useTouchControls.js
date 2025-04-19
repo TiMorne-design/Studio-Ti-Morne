@@ -1,6 +1,7 @@
 /**
  * Hook optimisé pour les contrôles tactiles sans besoin de modifications dans useCameraControls.js
  * Cette version traduit les interactions tactiles en rotations absolues
+ * avec correction de la direction du swipe
  */
 import { useCallback, useRef, useEffect } from 'react';
 import debugUtils from '../utils/debugUtils';
@@ -186,7 +187,8 @@ export default function useTouchControls({
     
     stopInertia();
     
-    // Ajuster la vélocité pour un mouvement plus naturel
+    // Garder la même direction que le mouvement original
+    // On n'inverse pas la vélocité
     let currentVelocity = velocity * (isSwipe ? inertiaOptions.swipeMultiplier : 1);
     
     inertiaRef.current.active = true;
