@@ -79,8 +79,8 @@ export default function useTouchControls({
     // Arrêter toute inertie existante
     stopInertia();
     
-    // IMPORTANT: Inverser la vélocité pour correspondre à l'intuition naturelle
-    // Si l'utilisateur swipe de droite à gauche (vélocité négative), la caméra doit tourner vers la droite (vélocité positive)
+    // Pour l'inertie du swipe, on veut aussi inverser la direction
+    // pour que l'effet soit cohérent avec la gestuelle
     initialVelocity = -initialVelocity;
     
     // Appliquer un multiplicateur si c'est un swipe
@@ -236,9 +236,8 @@ export default function useTouchControls({
         const normalizedX = (touch.clientX / viewportWidth) * 2 - 1;
         const normalizedY = (touch.clientY / viewportHeight) * 2 - 1;
         
-        // INVERSION : Pour que le mouvement corresponde à l'intuition naturelle
-        // Si on déplace le doigt vers la droite, la caméra doit tourner vers la gauche
-        const invertedNormalizedX = -normalizedX;
+        // Pour le toucher continu, on n'inverse PAS la direction
+        // Cela conserve le comportement d'origine que les utilisateurs connaissent déjà
         
         // Stocker l'inertie horizontale
         inertiaRef.current.horizontal = velocityRef.current.x;
@@ -247,7 +246,7 @@ export default function useTouchControls({
         const simulatedMouseEvent = {
           clientX: touch.clientX,
           clientY: touch.clientY,
-          normalizedX: invertedNormalizedX, // Utiliser la valeur inversée
+          normalizedX: normalizedX, // Utiliser la valeur non inversée
           normalizedY: normalizedY,
           isTouchEvent: true,
           preventAutoReset: true // Empêcher le reset automatique
