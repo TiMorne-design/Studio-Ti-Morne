@@ -367,42 +367,52 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
     }
     
     // Normaliser la position de la souris entre -1 et 1
-    const x = e.normalizedX || (e.clientX / window.innerWidth) * 2 - 1;
-    const y = e.normalizedY || (e.clientY / window.innerHeight) * 2 - 1;
-    
-    // Calcul de la distance du curseur par rapport au centre HORIZONTAL uniquement
-    const distanceFromCenterX = Math.abs(x);
-    
-    // Augmenter légèrement l'offset de position pour un effet plus prononcé
-    const posOffsetX = x * config.maxPositionOffset * 1.5;
-    
-    // Réduire le mouvement vertical quand on s'éloigne du centre horizontal
-    const verticalFactor = Math.max(0, 1 - (distanceFromCenterX / config.centerWidthZone));
-    const posOffsetY = -y * config.maxPositionOffset * 0.5 * verticalFactor;
-    
-    // Appliquer ces offsets à la position cible
-    targetPosition.current.x = initialPosition.current.x + posOffsetX;
-    targetPosition.current.y = initialPosition.current.y + posOffsetY;
-    
-    // Base de rotation selon la direction du mouvement
-    const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
-    
-    // Calcul des rotations
-    // Rotation horizontale avec amplitude augmentée
-    targetRotation.current.y = baseAngle + (-x * config.maxSideRotation);
-    
-    // Rotation verticale (X) - uniquement dans la zone centrale horizontale
-    if (movementDirection.current > 0) {
-      // Direction normale (avant)
-      targetRotation.current.x = -y * config.maxVerticalAngle * verticalFactor;
-    } else {
-      // Direction inversée (arrière)
-      targetRotation.current.x = y * config.maxVerticalAngle * verticalFactor;
-    }
-    
-    // Assurer que la rotation Z reste à 0
-    targetRotation.current.z = 0;
-  }, [controlsEnabled]);
+  const x = e.normalizedX || (e.clientX / window.innerWidth) * 2 - 1;
+  const y = e.normalizedY || (e.clientY / window.innerHeight) * 2 - 1;
+  
+  // NOUVEAU: Appliquer une courbe de réponse plus douce pour les petits mouvements
+  // Utiliser une courbe cubique pour une réponse plus naturelle
+  const applyResponseCurve = (value, exponent = 3) => {
+    return Math.sign(value) * Math.pow(Math.abs(value), exponent);
+  };
+  
+  // Appliquer la courbe de réponse pour un mouvement plus précis au centre
+  const xModified = Math.sign(x) * Math.pow(Math.abs(x), 1.2);
+  const yModified = Math.sign(y) * Math.pow(Math.abs(y), 1.3);
+  
+  // Calcul de la distance du curseur par rapport au centre HORIZONTAL uniquement
+  const distanceFromCenterX = Math.abs(xModified);
+  
+  // Réduire l'offset de position pour un effet moins prononcé
+  const posOffsetX = xModified * config.maxPositionOffset * 1.2;
+  
+  // Réduire le mouvement vertical quand on s'éloigne du centre horizontal
+  const verticalFactor = Math.max(0, 1 - (distanceFromCenterX / config.centerWidthZone));
+  const posOffsetY = -yModified * config.maxPositionOffset * 0.4 * verticalFactor;
+  
+  // Appliquer ces offsets à la position cible
+  targetPosition.current.x = initialPosition.current.x + posOffsetX;
+  targetPosition.current.y = initialPosition.current.y + posOffsetY;
+  
+  // Base de rotation selon la direction du mouvement
+  const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
+  
+  // Calcul des rotations
+  // Rotation horizontale avec amplitude réduite et courbe de réponse
+  targetRotation.current.y = baseAngle + (-xModified * config.maxSideRotation);
+  
+  // Rotation verticale (X) - uniquement dans la zone centrale horizontale
+  if (movementDirection.current > 0) {
+    // Direction normale (avant)
+    targetRotation.current.x = -yModified * config.maxVerticalAngle * verticalFactor;
+  } else {
+    // Direction inversée (arrière)
+    targetRotation.current.x = yModified * config.maxVerticalAngle * verticalFactor;
+  }
+  
+  // Assurer que la rotation Z reste à 0
+  targetRotation.current.z = 0;
+}, [controlsEnabled]);
   
   /**
    * Sauvegarde l'état actuel de la caméra

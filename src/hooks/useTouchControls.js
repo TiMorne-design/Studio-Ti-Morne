@@ -1,3 +1,6 @@
+/**
+ * Hook personnalisé pour gérer les interactions tactiles avec comportement unifié
+ */
 import { useCallback, useRef, useEffect } from 'react';
 import debugUtils from '../utils/debugUtils';
 
@@ -8,7 +11,7 @@ const { logger } = debugUtils;
  */
 export default function useTouchControls({ 
   onMouseMove = null,
-  sensitivity = 1.0,
+  sensitivity = 0.5, // Sensibilité réduite (était 1.0)
   threshold = 3
 }) {
   // État pour suivre les interactions tactiles
@@ -44,10 +47,10 @@ export default function useTouchControls({
   
   // Paramètres d'inertie - MODIFIÉS POUR RÉDUIRE FORTEMENT L'INERTIE
   const inertiaOptions = {
-    damping: 0.8,         // Augmenté pour réduire plus rapidement l'inertie
-    minSpeed: 0.75,       // Augmenté pour arrêter l'inertie plus tôt
+    damping: 0.85,         // Augmenté pour réduire plus rapidement l'inertie
+    minSpeed: 0.9,         // Augmenté pour arrêter l'inertie plus tôt
     swipeThreshold: 5,
-    swipeMultiplier: 0.1  // Réduit pour diminuer l'effet de l'inertie
+    swipeMultiplier: 0.05  // Réduit pour diminuer l'effet de l'inertie
   };
   
   /**
@@ -56,7 +59,7 @@ export default function useTouchControls({
   const calculateVelocity = (delta, time) => {
     if (time === 0) return 0;
     // Réduire le facteur de vélocité
-    return Math.min(Math.abs(delta) / time * 6, 3) * Math.sign(delta);
+    return Math.min(Math.abs(delta) / time * 4, 2) * Math.sign(delta);
   };
   
   /**
@@ -138,15 +141,17 @@ export default function useTouchControls({
       if (Math.abs(deltaX) > threshold) {
         touchStateRef.current.moving = true;
         
-        // Lorsque le doigt va à droite (deltaX positif), la caméra doit aller à droite
-        cameraPosRef.current.x += deltaX * sensitivity * 0.02;
+        // CORRECTION: Inverser le signe ici pour corriger le sens de rotation
+        // Maintenant, lorsque le doigt va à droite, la caméra regardera à gauche
+        cameraPosRef.current.x -= deltaX * sensitivity * 0.02;
         
-        // Limiter la rotation pour éviter les extrêmes
-        const maxRotation = Math.PI * 0.4; // ~72 degrés
+        // Limiter la rotation de manière plus progressive
+        const maxRotation = Math.PI * 0.3; // Réduit de 0.4 à 0.3 (environ 54 degrés)
         cameraPosRef.current.x = Math.max(-maxRotation, Math.min(maxRotation, cameraPosRef.current.x));
         
-        // Calculer la position normalisée
-        const normalizedX = cameraPosRef.current.x / (Math.PI * 0.5);
+        // MODIFICATION: Appliquer une courbe non-linéaire pour plus de douceur sur les petits mouvements
+        // et plus de contrôle avant d'atteindre les extremes
+        const normalizedX = Math.sin(cameraPosRef.current.x) / Math.sin(maxRotation);
         
         // Créer l'événement simulé
         const simulatedEvent = {
@@ -186,11 +191,11 @@ export default function useTouchControls({
     
     stopInertia();
     
-    // Inverser la vélocité pour que le mouvement soit cohérent
-    let currentVelocity = -velocity;
+    // CORRECTION: Nous n'inversons pas la vélocité car nous avons déjà inversé le signe dans handleTouchMove
+    let currentVelocity = velocity;
     
     // Limiter fortement la vélocité maximale pour réduire l'inertie
-    const maxVelocity = isSwipe ? 0.6 : 0.3;
+    const maxVelocity = isSwipe ? 0.4 : 0.2; // Réduit encore plus (0.6->0.4, 0.3->0.2)
     currentVelocity = Math.sign(currentVelocity) * Math.min(Math.abs(currentVelocity), maxVelocity);
     
     inertiaRef.current.active = true;
@@ -205,15 +210,15 @@ export default function useTouchControls({
       // Diminuer progressivement la vélocité (amortissement plus rapide)
       currentVelocity *= inertiaOptions.damping;
       
-      // Mettre à jour la position cumulative
-      cameraPosRef.current.x += currentVelocity * 0.015;
+      // Mettre à jour la position cumulative - INVERSER LE SIGNE ICI AUSSI
+      cameraPosRef.current.x -= currentVelocity * 0.01; // Réduit de 0.015 à 0.01
       
       // Limiter la rotation
-      const maxRotation = Math.PI * 0.4;
+      const maxRotation = Math.PI * 0.3; // Cohérent avec handleTouchMove
       cameraPosRef.current.x = Math.max(-maxRotation, Math.min(maxRotation, cameraPosRef.current.x));
       
-      // Calculer la position normalisée
-      const normalizedX = cameraPosRef.current.x / (Math.PI * 0.5);
+      // Appliquer une courbe non-linéaire comme dans handleTouchMove
+      const normalizedX = Math.sin(cameraPosRef.current.x) / Math.sin(maxRotation);
       
       // Créer l'événement simulé
       const simulatedEvent = {
@@ -227,7 +232,7 @@ export default function useTouchControls({
       // Appeler la fonction de mouvement
       onMouseMove(simulatedEvent);
       
-      // Arrêter si la vélocité est trop faible (plus vite)
+      // Arrêter si la vélocité est trop faible
       if (Math.abs(currentVelocity) < inertiaOptions.minSpeed) {
         stopInertia();
         return;
@@ -304,7 +309,7 @@ export default function useTouchControls({
     element.addEventListener('touchmove', handleTouchMove, { passive: false });
     element.addEventListener('touchend', handleTouchEnd, { passive: false });
     
-    logger.log("Contrôles tactiles unifiés attachés - comportement identique partout");
+    logger.log("Contrôles tactiles unifiés attachés avec sensibilité ajustée");
     
     // Fonction de nettoyage
     return () => {

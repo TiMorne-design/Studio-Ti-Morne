@@ -232,7 +232,7 @@ export default function CabinInterior() {
         splineSceneRef.current.handleMouseMove(e);
       }
     },
-    sensitivity: isMobile ? 1.0 : 1.5
+    sensitivity: isMobile ? 0.5 : 0.8
   });
   
   /**
@@ -677,16 +677,61 @@ export default function CabinInterior() {
     }
   }, [isMobile, showMobileGuide]);
   
-  // Effet pour attacher les contrôles tactiles
-  useEffect(() => {
-    if (isMobile || isTablet) {
-      const rootElement = document.getElementById('root');
-      if (rootElement) {
-        const cleanup = attachTouchListeners(rootElement);
-        return cleanup;
-      }
-    }
-  }, [isMobile, isTablet, attachTouchListeners]);
+  // Ajoutez cette fonction dans CabinInterior.jsx
+// avant l'effet d'initialisation des contrôles tactiles
+
+/**
+ * Initialise les contrôles tactiles avec des options adaptées au dispositif
+ */
+const initializeTouchControls = useCallback(() => {
+  if (!isMobile && !isTablet) return;
+  
+  // Obtenir la densité de pixels pour ajuster la sensibilité
+  const pixelRatio = window.devicePixelRatio || 1;
+  
+  // Ajuster la sensibilité en fonction de la taille d'écran et de la densité de pixels
+  let touchSensitivity = 0.5; // Valeur de base
+  
+  // Réduire la sensibilité sur les petits écrans à haute densité
+  if (window.innerWidth < 400 && pixelRatio > 2) {
+    touchSensitivity = 0.35;
+  } 
+  // Réduire légèrement sur les tablettes
+  else if (isTablet) {
+    touchSensitivity = 0.45;
+  }
+  
+  // Vérifier l'orientation
+  if (isLandscape) {
+    // Réduire encore plus en mode paysage
+    touchSensitivity *= 0.85;
+  }
+  
+  logger.log("Initialisation des contrôles tactiles:", {
+    sensibilité: touchSensitivity,
+    appareil: isMobile ? "mobile" : "tablette",
+    orientation: isLandscape ? "paysage" : "portrait",
+    pixelRatio
+  });
+  
+  // Appliquer les contrôles tactiles
+  const rootElement = document.getElementById('root');
+  if (rootElement) {
+    const cleanup = attachTouchListeners(rootElement);
+    return cleanup;
+  }
+  
+  return () => {};
+}, [isMobile, isTablet, isLandscape, attachTouchListeners]);
+
+// Ensuite remplacez l'effet existant par:
+useEffect(() => {
+  if (isMobile || isTablet) {
+    const cleanup = initializeTouchControls();
+    return cleanup;
+  }
+}, [isMobile, isTablet, initializeTouchControls]);
+  
       
   // Si l'appareil est trop peu puissant, afficher l'expérience allégée
   const preferFullExperience = localStorage.getItem('preferFullExperience') === 'true';

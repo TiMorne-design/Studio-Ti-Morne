@@ -81,9 +81,50 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
     // Gestion des contrôles de caméra
     handleButtonClick,
     handleWheel, 
-    handleMouseMove: (e) => {
-        handleMouseMove(e);
-    },
+    handleMouseMove: (e) => {const filterMouseEvent = (event) => {
+      // Référence statique pour stocker les valeurs précédentes
+      if (!filterMouseEvent.prevX) {
+        filterMouseEvent.prevX = event.normalizedX || 0;
+        filterMouseEvent.prevY = event.normalizedY || 0;
+      }
+  
+      // Pour les événements tactiles, appliquer un filtrage supplémentaire
+      if (event.isTouchEvent) {
+        const smoothingFactor = 0.35; // Plus petit = plus de lissage
+        
+        // Si les valeurs normalisées sont définies, les utiliser directement
+        if (event.normalizedX !== undefined) {
+          // Appliquer un lissage entre l'ancienne et la nouvelle valeur
+          const smoothedX = filterMouseEvent.prevX * (1 - smoothingFactor) + 
+                             event.normalizedX * smoothingFactor;
+          const smoothedY = filterMouseEvent.prevY * (1 - smoothingFactor) + 
+                             (event.normalizedY || 0) * smoothingFactor;
+          
+          // Mettre à jour les valeurs précédentes
+          filterMouseEvent.prevX = smoothedX;
+          filterMouseEvent.prevY = smoothedY;
+          
+          // Créer un nouvel événement avec les valeurs lissées
+          return {
+            ...event,
+            normalizedX: smoothedX,
+            normalizedY: smoothedY,
+            // Mettre à jour les coordonnées clientX/Y pour cohérence
+            clientX: window.innerWidth * (smoothedX + 1) / 2,
+            clientY: window.innerHeight * (smoothedY + 1) / 2
+          };
+        }
+      }
+      
+      // Pour les événements de souris (non tactiles), pas de filtrage supplémentaire
+      return event;
+    };
+    
+    // Filtrer l'événement avant de le transmettre
+    const filteredEvent = filterMouseEvent(e);
+    handleMouseMove(filteredEvent);
+  },
+  
     restorePreviousCameraState,
     hasPreviousState,
     
