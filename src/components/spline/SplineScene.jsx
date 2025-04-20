@@ -81,24 +81,9 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
     // Gestion des contrôles de caméra
     handleButtonClick,
     handleWheel, 
-    
     handleMouseMove: (e) => {
-      // Si c'est un événement tactile (vérifié avec la propriété isTouchEvent)
-      if (e.isTouchEvent) {
-        // Appliquer un facteur de réduction supplémentaire pour les événements tactiles
-        const touchFactor = 1.0; // Réduire de moitié la sensibilité pour les événements tactiles
-        const adjustedEvent = {
-          ...e,
-          normalizedX: e.normalizedX * touchFactor,
-          normalizedY: e.normalizedY * touchFactor
-        };
-        handleMouseMove(adjustedEvent);
-      } else {
-        // Comportement normal pour les événements souris
         handleMouseMove(e);
-      }
     },
-
     restorePreviousCameraState,
     hasPreviousState,
     

@@ -182,11 +182,11 @@ if (isOnTerrace.current &&
           // Passage de l'intérieur à la terrasse
           isOnTerrace.current = true;
           
-          // Remettre la caméra droite lorsqu'on sort
-          if (!window.matchMedia('(pointer: coarse)').matches) {
-            const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
-            targetRotation.current.y = baseAngle;
-            targetRotation.current.x = 0;
+           // Sur appareil non tactile, remettre la caméra droite lors de la sortie
+        if (!window.matchMedia('(pointer: coarse)').matches) {
+        const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
+        targetRotation.current.y = baseAngle;
+        targetRotation.current.x = 0;
             
             // Réinitialiser les décalages X et Y
             targetPosition.current.x = initialPosition.current.x;
@@ -204,9 +204,10 @@ if (isOnTerrace.current &&
         const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
 
         // Sur la terrasse avec ordinateur, désactiver la rotation
-        if (isOnTerrace.current && !isTouchDevice) {
-          // Ne pas appliquer de rotation, mais recentrer progressivement
-          const returnFactor = config.smoothFactor;
+    // Pour mobile/tablette, permettre toujours la rotation
+    if (isOnTerrace.current && !isTouchDevice) {
+      // Ne pas appliquer de rotation, mais recentrer progressivement
+      const returnFactor = config.smoothFactor;
           
           // Recentrage de la position horizontale
           currentPos.x += (initialPosition.current.x - currentPos.x) * returnFactor;
