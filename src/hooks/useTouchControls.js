@@ -1,5 +1,6 @@
 /**
- * Hook personnalisé pour gérer les interactions tactiles avec comportement unifié
+ * Hook personnalisé pour gérer uniquement les interactions tactiles de type swipe
+ * Version modifiée qui ne permet que les swipes, pas le mouvement continu
  */
 import { useCallback, useRef, useEffect } from 'react';
 import debugUtils from '../utils/debugUtils';
@@ -7,12 +8,12 @@ import debugUtils from '../utils/debugUtils';
 const { logger } = debugUtils;
 
 /**
- * Hook personnalisé pour gérer les interactions tactiles avec comportement unifié
+ * Hook personnalisé pour gérer uniquement les interactions tactiles de type swipe
  */
 export default function useTouchControls({ 
   onMouseMove = null,
-  sensitivity = 0.5, // Sensibilité réduite (était 1.0)
-  threshold = 3
+  sensitivity = 0.7, // Sensibilité augmentée pour les swipes
+  threshold = 5 // Seuil légèrement augmenté
 }) {
   // État pour suivre les interactions tactiles
   const touchStateRef = useRef({
@@ -45,12 +46,13 @@ export default function useTouchControls({
     timestamp: 0
   });
   
-  // Paramètres d'inertie - MODIFIÉS POUR RÉDUIRE FORTEMENT L'INERTIE
-  const inertiaOptions = {
-    damping: 0.85,         // Augmenté pour réduire plus rapidement l'inertie
-    minSpeed: 0.9,         // Augmenté pour arrêter l'inertie plus tôt
-    swipeThreshold: 5,
-    swipeMultiplier: 0.05  // Réduit pour diminuer l'effet de l'inertie
+  // Paramètres pour le comportement du swipe
+  const swipeOptions = {
+    damping: 0.92,        // Diminution progressive de la vitesse
+    minSpeed: 0.5,        // Vitesse minimale pour continuer l'inertie
+    swipeThreshold: 5,    // Seuil pour considérer un mouvement comme un swipe
+    swipeMultiplier: 0.8, // Multiplicateur pour l'effet de swipe
+    swipeDurationThreshold: 300 // Durée max pour considérer un mouvement comme un swipe
   };
   
   /**
@@ -58,8 +60,8 @@ export default function useTouchControls({
    */
   const calculateVelocity = (delta, time) => {
     if (time === 0) return 0;
-    // Réduire le facteur de vélocité
-    return Math.min(Math.abs(delta) / time * 4, 2) * Math.sign(delta);
+    // Calculer la vélocité avec un facteur approprié pour les swipes
+    return Math.min(Math.abs(delta) / time * 8, 4) * Math.sign(delta);
   };
   
   /**
@@ -105,10 +107,11 @@ export default function useTouchControls({
   
   /**
    * Gestionnaire pour le mouvement du toucher
+   * Modifié pour ne collecter que des données de vélocité sans déplacer la caméra
    */
   const handleTouchMove = useCallback((e) => {
     // Vérifications de base
-    if (!touchStateRef.current || e.touches.length !== 1 || !onMouseMove) return;
+    if (!touchStateRef.current || e.touches.length !== 1) return;
 
     // Ignorer si l'événement provient d'un overlay
     if (e.target.closest('.overlay-content') || e.target.closest('[class*="overlay-container"]')) {
@@ -123,7 +126,7 @@ export default function useTouchControls({
     // Calculer le delta
     const deltaX = touch.clientX - state.lastX;
     
-    // Mettre à jour la vélocité
+    // Mettre à jour la vélocité périodiquement
     if (elapsed > 16) {
       velocityRef.current = {
         x: calculateVelocity(deltaX, elapsed),
@@ -132,42 +135,14 @@ export default function useTouchControls({
     }
     
     // Déterminer le type de mouvement
-    if (!state.moveType && Math.abs(deltaX) > threshold) {
+    if (!state.moveType && Math.abs(touch.clientX - state.startX) > threshold) {
       touchStateRef.current.moveType = 'horizontal';
+      touchStateRef.current.moving = true;
     }
     
-    // Traiter le mouvement horizontal
-    if (state.moveType === 'horizontal') {
-      if (Math.abs(deltaX) > threshold) {
-        touchStateRef.current.moving = true;
-        
-        // CORRECTION: Inverser le signe ici pour corriger le sens de rotation
-        // Maintenant, lorsque le doigt va à droite, la caméra regardera à gauche
-        cameraPosRef.current.x -= deltaX * sensitivity * 0.02;
-        
-        // Limiter la rotation de manière plus progressive
-        const maxRotation = Math.PI * 0.3; // Réduit de 0.4 à 0.3 (environ 54 degrés)
-        cameraPosRef.current.x = Math.max(-maxRotation, Math.min(maxRotation, cameraPosRef.current.x));
-        
-        // MODIFICATION: Appliquer une courbe non-linéaire pour plus de douceur sur les petits mouvements
-        // et plus de contrôle avant d'atteindre les extremes
-        const normalizedX = Math.sin(cameraPosRef.current.x) / Math.sin(maxRotation);
-        
-        // Créer l'événement simulé
-        const simulatedEvent = {
-          // Convertir en coordonnées d'écran pour compatibilité
-          clientX: window.innerWidth * (normalizedX + 1) / 2,
-          clientY: window.innerHeight / 2, // Centre vertical
-          // La vraie valeur utilisée par useCameraControls
-          normalizedX: normalizedX,
-          normalizedY: 0, // Pas de mouvement vertical pour simplifier
-          isTouchEvent: true  // Marquer explicitement comme événement tactile
-        };
-        
-        // Appeler la fonction de mouvement
-        onMouseMove(simulatedEvent);
-      }
-    }
+    // Mise à jour des valeurs pour le suivi du mouvement
+    // IMPORTANT: Nous ne déplaçons plus la caméra pendant le mouvement,
+    // mais seulement après le swipe via l'inertie
     
     // Mettre à jour l'état
     touchStateRef.current = {
@@ -176,26 +151,26 @@ export default function useTouchControls({
       lastY: touch.clientY
     };
     
-    // Empêcher le comportement par défaut
+    // Empêcher le comportement par défaut si on est en train de suivre un mouvement
     if (touchStateRef.current.moving) {
       e.preventDefault();
       e.stopPropagation();
     }
-  }, [onMouseMove, sensitivity, threshold]);
+  }, [threshold]);
   
   /**
-   * Applique l'inertie après un mouvement
+   * Applique l'inertie après un swipe
    */
   const applyInertia = useCallback((velocity, isSwipe) => {
-    if (!onMouseMove || Math.abs(velocity) < inertiaOptions.minSpeed) return;
+    if (!onMouseMove || !isSwipe) return;
     
     stopInertia();
     
-    // CORRECTION: Nous n'inversons pas la vélocité car nous avons déjà inversé le signe dans handleTouchMove
-    let currentVelocity = velocity;
+    // Ajuster la vélocité initiale en fonction du swipe
+    let currentVelocity = velocity * swipeOptions.swipeMultiplier;
     
-    // Limiter fortement la vélocité maximale pour réduire l'inertie
-    const maxVelocity = isSwipe ? 0.4 : 0.2; // Réduit encore plus (0.6->0.4, 0.3->0.2)
+    // Définir une vélocité maximale
+    const maxVelocity = 3.0;
     currentVelocity = Math.sign(currentVelocity) * Math.min(Math.abs(currentVelocity), maxVelocity);
     
     inertiaRef.current.active = true;
@@ -207,17 +182,17 @@ export default function useTouchControls({
         return;
       }
       
-      // Diminuer progressivement la vélocité (amortissement plus rapide)
-      currentVelocity *= inertiaOptions.damping;
+      // Diminuer progressivement la vélocité
+      currentVelocity *= swipeOptions.damping;
       
-      // Mettre à jour la position cumulative - INVERSER LE SIGNE ICI AUSSI
-      cameraPosRef.current.x -= currentVelocity * 0.01; // Réduit de 0.015 à 0.01
+      // Mettre à jour la position cumulative
+      cameraPosRef.current.x -= currentVelocity * 0.015;
       
       // Limiter la rotation
-      const maxRotation = Math.PI * 0.3; // Cohérent avec handleTouchMove
+      const maxRotation = Math.PI * 0.35;
       cameraPosRef.current.x = Math.max(-maxRotation, Math.min(maxRotation, cameraPosRef.current.x));
       
-      // Appliquer une courbe non-linéaire comme dans handleTouchMove
+      // Appliquer une courbe non-linéaire pour améliorer la sensation
       const normalizedX = Math.sin(cameraPosRef.current.x) / Math.sin(maxRotation);
       
       // Créer l'événement simulé
@@ -233,7 +208,7 @@ export default function useTouchControls({
       onMouseMove(simulatedEvent);
       
       // Arrêter si la vélocité est trop faible
-      if (Math.abs(currentVelocity) < inertiaOptions.minSpeed) {
+      if (Math.abs(currentVelocity) < swipeOptions.minSpeed) {
         stopInertia();
         return;
       }
@@ -257,16 +232,16 @@ export default function useTouchControls({
     // Calculer la distance totale
     const totalDistanceX = Math.abs(state.lastX - state.startX);
     
-    // Déterminer si c'est un swipe
-    const isSwipe = touchDuration < 300 && 
-                    Math.abs(lastVelocity.x) > inertiaOptions.swipeThreshold &&
-                    totalDistanceX > 20;
+    // Déterminer si c'est un swipe valide
+    const isSwipe = touchDuration < swipeOptions.swipeDurationThreshold && 
+                    totalDistanceX > 20 &&
+                    Math.abs(lastVelocity.x) > swipeOptions.swipeThreshold;
     
-    // Appliquer l'inertie si nécessaire
-    if (state.moving && state.moveType === 'horizontal') {
+    // Appliquer l'inertie seulement si c'est un swipe valide
+    if (state.moving && state.moveType === 'horizontal' && isSwipe) {
       applyInertia(lastVelocity.x, isSwipe);
       
-      logger.log(`Toucher terminé: ${isSwipe ? 'Swipe' : 'Mouvement normal'} avec vélocité ${lastVelocity.x}`);
+      logger.log(`Swipe détecté avec vélocité ${lastVelocity.x}, distance ${totalDistanceX}px et durée ${touchDuration}ms`);
     }
     
     // Réinitialiser l'état du toucher
@@ -280,7 +255,7 @@ export default function useTouchControls({
       moveType: null
     };
     
-    // Empêcher le comportement par défaut
+    // Empêcher le comportement par défaut si on était en mouvement
     if (state.moving) {
       e.preventDefault();
       e.stopPropagation();
@@ -309,7 +284,7 @@ export default function useTouchControls({
     element.addEventListener('touchmove', handleTouchMove, { passive: false });
     element.addEventListener('touchend', handleTouchEnd, { passive: false });
     
-    logger.log("Contrôles tactiles unifiés attachés avec sensibilité ajustée");
+    logger.log("Contrôles tactiles de type swipe attachés");
     
     // Fonction de nettoyage
     return () => {
