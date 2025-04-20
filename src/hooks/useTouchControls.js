@@ -189,7 +189,7 @@ export default function useTouchControls({
     
     // Utiliser directement la vélocité calculée qui est déjà inversée
     // Note: velocityRef.x a déjà été calculé avec -deltaX dans handleTouchMove
-    let currentVelocity = -velocity;
+    let currentVelocity = velocity;
     
     // Limiter fortement la vélocité maximale pour réduire l'inertie
     const maxVelocity = isSwipe ? 1.2 : 0.5;
