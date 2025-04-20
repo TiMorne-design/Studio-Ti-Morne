@@ -44,10 +44,10 @@ export default function useTouchControls({
   
   // Paramètres d'inertie - MODIFIÉS POUR RÉDUIRE FORTEMENT L'INERTIE
   const inertiaOptions = {
-    damping: 0.85,        // Augmenté pour réduire plus rapidement l'inertie
-    minSpeed: 0.8,        // Augmenté pour arrêter l'inertie plus tôt
+    damping: 0.8,        // Augmenté pour réduire plus rapidement l'inertie
+    minSpeed: 0.75,        // Augmenté pour arrêter l'inertie plus tôt
     swipeThreshold: 5,
-    swipeMultiplier: 0.2  // Réduit pour diminuer l'effet de l'inertie
+    swipeMultiplier: 0.15  // Réduit pour diminuer l'effet de l'inertie
   };
   
   /**
@@ -56,7 +56,7 @@ export default function useTouchControls({
   const calculateVelocity = (delta, time) => {
     if (time === 0) return 0;
     // Réduire le facteur de vélocité
-    return Math.min(Math.abs(delta) / time * 7, 6) * Math.sign(delta);
+    return Math.min(Math.abs(delta) / time * 9, 5) * Math.sign(delta);
   };
   
   /**
@@ -140,7 +140,7 @@ export default function useTouchControls({
         touchStateRef.current.moving = true;
         
          // Lorsque le doigt va à droite (deltaX positif), la caméra doit aller à droite
-        cameraPosRef.current.x += deltaX * sensitivity * 0.02;
+        cameraPosRef.current.x += deltaX * sensitivity * 0.04;
         
         // Limiter la rotation pour éviter les extrêmes
         const maxRotation = Math.PI * 0.4; // ~72 degrés
@@ -189,10 +189,10 @@ export default function useTouchControls({
     
     // Utiliser directement la vélocité calculée qui est déjà inversée
     // Note: velocityRef.x a déjà été calculé avec -deltaX dans handleTouchMove
-    let currentVelocity = velocity;
+    let currentVelocity = -velocity;
     
     // Limiter fortement la vélocité maximale pour réduire l'inertie
-    const maxVelocity = isSwipe ? 1.5 : 0.7;
+    const maxVelocity = isSwipe ? 1.2 : 0.5;
     currentVelocity = Math.sign(currentVelocity) * Math.min(Math.abs(currentVelocity), maxVelocity);
     
     inertiaRef.current.active = true;

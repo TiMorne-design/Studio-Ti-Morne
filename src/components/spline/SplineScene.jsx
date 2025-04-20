@@ -86,7 +86,7 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
       // Si c'est un événement tactile (vérifié avec la propriété isTouchEvent)
       if (e.isTouchEvent) {
         // Appliquer un facteur de réduction supplémentaire pour les événements tactiles
-        const touchFactor = 0.5; // Réduire de moitié la sensibilité pour les événements tactiles
+        const touchFactor = 1.0; // Réduire de moitié la sensibilité pour les événements tactiles
         const adjustedEvent = {
           ...e,
           normalizedX: e.normalizedX * touchFactor,
@@ -98,7 +98,7 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
         handleMouseMove(e);
       }
     },
-    
+
     restorePreviousCameraState,
     hasPreviousState,
     
