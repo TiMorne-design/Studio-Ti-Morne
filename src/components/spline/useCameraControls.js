@@ -170,6 +170,9 @@ if (isOnTerrace.current &&
   }
 }
 
+// Détecter si c'est un appareil tactile
+const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+
         // Vérification de la position Z pour détecter le passage de la porte
         if (isOnTerrace.current) {
           // Passage de la terrasse à l'intérieur
@@ -182,32 +185,29 @@ if (isOnTerrace.current &&
           // Passage de l'intérieur à la terrasse
           isOnTerrace.current = true;
           
-           // Sur appareil non tactile, remettre la caméra droite lors de la sortie
-        if (!window.matchMedia('(pointer: coarse)').matches) {
-        const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
-        targetRotation.current.y = baseAngle;
-        targetRotation.current.x = 0;
-            
-            // Réinitialiser les décalages X et Y
-            targetPosition.current.x = initialPosition.current.x;
-            targetPosition.current.y = initialPosition.current.y;
-            
-            logger.log("Sortie sur la terrasse - rotation désactivée");
-          }
-        }
+          // Ajouter un log ici pour voir l'état quand on retourne sur la terrasse
+           logger.log("Retour sur la terrasse - hasPerformedFirstTurn:", hasPerformedFirstTurn.current, "isTouchDevice:", isTouchDevice);
+
+           // Sur desktop, définir la rotation neutre comme cible si aucun demi-tour n'a été fait
+  if (!isTouchDevice && !hasPerformedFirstTurn.current) {
+    const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
+    targetRotation.current.y = baseAngle;
+    targetRotation.current.x = 0;
+    targetPosition.current.x = initialPosition.current.x;
+    targetPosition.current.y = initialPosition.current.y;
+    logger.log("Sortie sur la terrasse - rotation désactivée pour desktop (avant premier demi-tour)");
+  }
+}
         
         // Appliquer un mouvement fluide à la position Z (avancer/reculer)
         const dz = targetPosition.current.z - currentPos.z;
         currentPos.z += dz * config.smoothFactor;
 
-        // Détecter si c'est un appareil tactile
-        const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
 
-        // Sur la terrasse avec ordinateur, désactiver la rotation
-    // Pour mobile/tablette, permettre toujours la rotation
-    if (isOnTerrace.current && !isTouchDevice) {
-      // Ne pas appliquer de rotation, mais recentrer progressivement
-      const returnFactor = config.smoothFactor;
+        // Sur desktop ET sur terrasse ET avant le premier demi-tour, désactiver les contrôles de rotation
+        if (isOnTerrace.current && !isTouchDevice && !hasPerformedFirstTurn.current) {
+        // Ne pas appliquer de rotation, mais recentrer progressivement
+        const returnFactor = config.smoothFactor;
           
           // Recentrage de la position horizontale
           currentPos.x += (initialPosition.current.x - currentPos.x) * returnFactor;
@@ -218,10 +218,10 @@ if (isOnTerrace.current &&
           currentRot.x += (0 - currentRot.x) * returnFactor;
           currentRot.y += (baseAngle - currentRot.y) * returnFactor;
         } else {
-          // Dans tous les autres cas (intérieur OU tactile), permettre la rotation normale
-          // Léger décalage de position X et Y
-          const dx = targetPosition.current.x - currentPos.x;
-          const dy = targetPosition.current.y - currentPos.y;
+          // Dans tous les autres cas (mobile tout le temps, desktop à l'intérieur ou après demi-tour),
+          // permettre la rotation normale
+           const dx = targetPosition.current.x - currentPos.x;
+           const dy = targetPosition.current.y - currentPos.y;
           
           currentPos.x += dx * config.smoothFactor;
           currentPos.y += dy * config.smoothFactor;
@@ -361,7 +361,8 @@ if (isOnTerrace.current &&
     const isTouchEvent = e.isTouchEvent === true;
     
     // Ignorer le mouvement de souris sur la terrasse SAUF pour les événements tactiles
-    if (isOnTerrace.current && !isTouchEvent) {
+    // OU après avoir fait le premier demi-tour
+    if (isOnTerrace.current && !isTouchEvent && !hasPerformedFirstTurn.current) {
       return;
     }
     
