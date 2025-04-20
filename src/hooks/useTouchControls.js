@@ -47,7 +47,7 @@ export default function useTouchControls({
     damping: 0.8,        // Augmenté pour réduire plus rapidement l'inertie
     minSpeed: 0.75,        // Augmenté pour arrêter l'inertie plus tôt
     swipeThreshold: 5,
-    swipeMultiplier: 0.15  // Réduit pour diminuer l'effet de l'inertie
+    swipeMultiplier: 0.1  // Réduit pour diminuer l'effet de l'inertie
   };
   
   /**
@@ -56,7 +56,7 @@ export default function useTouchControls({
   const calculateVelocity = (delta, time) => {
     if (time === 0) return 0;
     // Réduire le facteur de vélocité
-    return Math.min(Math.abs(delta) / time * 9, 5) * Math.sign(delta);
+    return Math.min(Math.abs(delta) / time * 6, 3) * Math.sign(delta);
   };
   
   /**
@@ -140,7 +140,7 @@ export default function useTouchControls({
         touchStateRef.current.moving = true;
         
          // Lorsque le doigt va à droite (deltaX positif), la caméra doit aller à droite
-        cameraPosRef.current.x += deltaX * sensitivity * 0.04;
+        cameraPosRef.current.x += deltaX * sensitivity * 0.02;
         
         // Limiter la rotation pour éviter les extrêmes
         const maxRotation = Math.PI * 0.4; // ~72 degrés
@@ -187,12 +187,11 @@ export default function useTouchControls({
     
     stopInertia();
     
-    // Utiliser directement la vélocité calculée qui est déjà inversée
-    // Note: velocityRef.x a déjà été calculé avec -deltaX dans handleTouchMove
-    let currentVelocity = velocity;
+    // Inverser la vélocité pour que le mouvement soit cohérent
+  let currentVelocity = -velocity;
     
     // Limiter fortement la vélocité maximale pour réduire l'inertie
-    const maxVelocity = isSwipe ? 1.2 : 0.5;
+    const maxVelocity = isSwipe ? 0.6 : 0.3;
     currentVelocity = Math.sign(currentVelocity) * Math.min(Math.abs(currentVelocity), maxVelocity);
     
     inertiaRef.current.active = true;
@@ -208,7 +207,7 @@ export default function useTouchControls({
       currentVelocity *= inertiaOptions.damping;
       
       // Mettre à jour la position cumulative
-      cameraPosRef.current.x += currentVelocity * 0.03;
+      cameraPosRef.current.x += currentVelocity * 0.015;
       
       // Limiter la rotation
       const maxRotation = Math.PI * 0.4;
