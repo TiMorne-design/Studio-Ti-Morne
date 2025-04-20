@@ -1,6 +1,5 @@
 import { useCallback, useRef, useEffect } from 'react';
 import debugUtils from '../utils/debugUtils';
-import cameraUtils from '../utils/cameraUtils'; // Ajout d'import pour accéder aux limites
 
 const { logger } = debugUtils;
 
@@ -9,7 +8,7 @@ const { logger } = debugUtils;
  */
 export default function useTouchControls({ 
   onMouseMove = null,
-  sensitivity = 2.5,
+  sensitivity = 1.0,
   threshold = 3
 }) {
   // État pour suivre les interactions tactiles
@@ -45,10 +44,10 @@ export default function useTouchControls({
   
   // Paramètres d'inertie - MODIFIÉS POUR RÉDUIRE FORTEMENT L'INERTIE
   const inertiaOptions = {
-    damping: 0.75,        // Augmenté pour réduire plus rapidement l'inertie
+    damping: 0.85,        // Augmenté pour réduire plus rapidement l'inertie
     minSpeed: 0.8,        // Augmenté pour arrêter l'inertie plus tôt
     swipeThreshold: 5,
-    swipeMultiplier: 0.4  // Réduit pour diminuer l'effet de l'inertie
+    swipeMultiplier: 0.2  // Réduit pour diminuer l'effet de l'inertie
   };
   
   /**
@@ -57,7 +56,7 @@ export default function useTouchControls({
   const calculateVelocity = (delta, time) => {
     if (time === 0) return 0;
     // Réduire le facteur de vélocité
-    return Math.min(Math.abs(delta) / time * 10, 6) * Math.sign(delta);
+    return Math.min(Math.abs(delta) / time * 7, 6) * Math.sign(delta);
   };
   
   /**
@@ -102,19 +101,6 @@ export default function useTouchControls({
   }, []);
   
   /**
-   * Détecte si la caméra est sur la terrasse en se basant sur la position
-   * Cette fonction aide à normaliser le comportement entre terrasse et intérieur
-   */
-  const getCameraPosition = (splineApp) => {
-    if (!splineApp || !splineApp.camera) return null;
-    return {
-      x: splineApp.camera.position.x,
-      y: splineApp.camera.position.y,
-      z: splineApp.camera.position.z
-    };
-  };
-  
-  /**
    * Gestionnaire pour le mouvement du toucher
    */
   const handleTouchMove = useCallback((e) => {
@@ -134,10 +120,11 @@ export default function useTouchControls({
     // Calculer le delta
     const deltaX = touch.clientX - state.lastX;
     
-    // Mettre à jour la vélocité
+    // Mettre à jour la vélocité avec le signe correct pour le swipe
+    // Nous inversons le signe pour que le swipe fonctionne correctement plus tard
     if (elapsed > 16) {
       velocityRef.current = {
-        x: calculateVelocity(deltaX, elapsed),
+        x: calculateVelocity(-deltaX, elapsed), // IMPORTANT: -deltaX pour le swipe
         timestamp: now
       };
     }
@@ -152,9 +139,9 @@ export default function useTouchControls({
       if (Math.abs(deltaX) > threshold) {
         touchStateRef.current.moving = true;
         
-        // Ici, nous utilisons une sensibilité fixe quelle que soit la position (terrasse ou intérieur)
-        // Le facteur de sensibilité est uniforme pour les appareils tactiles
-        cameraPosRef.current.x += -deltaX * sensitivity * 0.03;
+        // SOLUTION : Inverser le signe pour le mouvement continu
+        // Lorsque le doigt va à droite (deltaX positif), la caméra doit aller à droite
+        cameraPosRef.current.x += -deltaX * sensitivity * 0.02;
         
         // Limiter la rotation pour éviter les extrêmes
         const maxRotation = Math.PI * 0.4; // ~72 degrés
@@ -201,12 +188,12 @@ export default function useTouchControls({
     
     stopInertia();
     
-    // Pas d'inversion, mais une vitesse d'inertie standardisée
-    let currentVelocity = -velocity;
+    // Utiliser directement la vélocité calculée qui est déjà inversée
+    // Note: velocityRef.x a déjà été calculé avec -deltaX dans handleTouchMove
+    let currentVelocity = velocity;
     
     // Limiter fortement la vélocité maximale pour réduire l'inertie
-    // Utiliser les mêmes limites partout, indépendamment de la position terrasse/intérieur
-    const maxVelocity = isSwipe ? 2.0 : 1.0;
+    const maxVelocity = isSwipe ? 1.5 : 0.7;
     currentVelocity = Math.sign(currentVelocity) * Math.min(Math.abs(currentVelocity), maxVelocity);
     
     inertiaRef.current.active = true;
@@ -221,7 +208,7 @@ export default function useTouchControls({
       // Diminuer progressivement la vélocité (amortissement plus rapide)
       currentVelocity *= inertiaOptions.damping;
       
-      // Mettre à jour la position cumulative avec un facteur fixe (uniformisé)
+      // Mettre à jour la position cumulative
       cameraPosRef.current.x += currentVelocity * 0.03;
       
       // Limiter la rotation
@@ -231,13 +218,13 @@ export default function useTouchControls({
       // Calculer la position normalisée
       const normalizedX = cameraPosRef.current.x / (Math.PI * 0.5);
       
-      // Créer l'événement simulé avec le flag tactile
+      // Créer l'événement simulé
       const simulatedEvent = {
         clientX: window.innerWidth * (normalizedX + 1) / 2,
         clientY: window.innerHeight / 2,
         normalizedX: normalizedX,
         normalizedY: 0,
-        isTouchEvent: true  // Important: marquer comme tactile
+        isTouchEvent: true
       };
       
       // Appeler la fonction de mouvement
@@ -320,7 +307,7 @@ export default function useTouchControls({
     element.addEventListener('touchmove', handleTouchMove, { passive: false });
     element.addEventListener('touchend', handleTouchEnd, { passive: false });
     
-    logger.log("Contrôles tactiles optimisés attachés avec uniformisation terrasse/intérieur");
+    logger.log("Contrôles tactiles optimisés attachés avec comportement cohérent");
     
     // Fonction de nettoyage
     return () => {
