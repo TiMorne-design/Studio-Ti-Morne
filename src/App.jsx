@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import CabinInterior from './scenes/CabinInterior';
 import Contact from './scenes/Contact';
+import { SceneProvider } from './contexts/SceneContext';
 import './App.css';
 import './styles/mobile.css';
 
@@ -41,6 +42,7 @@ function App() {
   
   return (
     <Router>
+      <SceneProvider>
       <div className="app-container">
         <Routes>
           <Route path="/" element={<CabinInterior />} />
@@ -49,6 +51,7 @@ function App() {
           <Route path="*" element={<div>404 - Page non trouvée</div>} />
         </Routes>
       </div>
+      </SceneProvider>
     </Router>
   );
 }
