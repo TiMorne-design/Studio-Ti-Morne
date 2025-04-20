@@ -124,7 +124,7 @@ export default function useTouchControls({
     // Nous inversons le signe pour que le swipe fonctionne correctement plus tard
     if (elapsed > 16) {
       velocityRef.current = {
-        x: calculateVelocity(-deltaX, elapsed), // IMPORTANT: -deltaX pour le swipe
+        x: calculateVelocity(deltaX, elapsed), // IMPORTANT: -deltaX pour le swipe
         timestamp: now
       };
     }
