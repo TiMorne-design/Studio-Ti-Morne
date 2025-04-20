@@ -124,7 +124,7 @@ export default function useTouchControls({
     // Nous inversons le signe pour que le swipe fonctionne correctement plus tard
     if (elapsed > 16) {
       velocityRef.current = {
-        x: calculateVelocity(-deltaX, elapsed), // IMPORTANT: -deltaX pour le swipe
+        x: calculateVelocity(deltaX, elapsed), // IMPORTANT: -deltaX pour le swipe
         timestamp: now
       };
     }
@@ -140,7 +140,7 @@ export default function useTouchControls({
         touchStateRef.current.moving = true;
         
          // Lorsque le doigt va à droite (deltaX positif), la caméra doit aller à droite
-        cameraPosRef.current.x += deltaX * sensitivity * 0.04;
+        cameraPosRef.current.x += -deltaX * sensitivity * 0.04;
         
         // Limiter la rotation pour éviter les extrêmes
         const maxRotation = Math.PI * 0.4; // ~72 degrés
