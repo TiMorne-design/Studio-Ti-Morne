@@ -1,4 +1,3 @@
-
 import { useCallback, useRef, useEffect } from 'react';
 import debugUtils from '../utils/debugUtils';
 
@@ -140,7 +139,9 @@ export default function useTouchControls({
         
         // Mise à jour de la position cumulative de la caméra
         // Cette valeur représente la rotation cumulée depuis le début des interactions
-        cameraPosRef.current.x += deltaX * sensitivity * 0.07;
+        // CORRECTION: Réduire la sensibilité pendant le mouvement continu
+        // Utiliser un multiplicateur plus petit pour éviter une inertie excessive
+        cameraPosRef.current.x += deltaX * sensitivity * 0.05;  // Réduit de 0.07 à 0.05
         
         // Limiter la rotation pour éviter les extrêmes
         const maxRotation = Math.PI * 0.4; // ~72 degrés
@@ -188,11 +189,12 @@ export default function useTouchControls({
     
     stopInertia();
     
-    // CORRECTION: Inverser la vélocité pour le swipe
-    // Si l'utilisateur swipe de droite à gauche (vélocité négative), la caméra doit tourner vers la droite (vélocité positive)
-    let currentVelocity = velocity; // Notez le signe négatif ici pour inverser
+    // CORRECTION: Ne pas inverser la vélocité pour le swipe
+    // Utiliser directement la vélocité calculée qui a déjà la bonne direction
+    let currentVelocity = velocity;
     
-    currentVelocity = Math.sign(currentVelocity) * Math.min(Math.abs(currentVelocity), isSwipe ? 4.5 : 3);
+    // CORRECTION: Ajuster la vélocité maximale
+    currentVelocity = Math.sign(currentVelocity) * Math.min(Math.abs(currentVelocity), isSwipe ? 3.5 : 2);
     
     inertiaRef.current.active = true;
     

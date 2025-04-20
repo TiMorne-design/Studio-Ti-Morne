@@ -14,7 +14,7 @@ const PrestationOverlay = ({ title, content, onClose }) => {
     <BaseOverlay 
       title={title} 
       onClose={onClose}
-      showCloseButton={true}
+      showCloseButton={false}
       animationDelay={200}
     >
       <div className="prestation-content">
