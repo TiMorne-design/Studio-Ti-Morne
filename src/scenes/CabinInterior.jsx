@@ -47,6 +47,7 @@ const { logger } = debugUtils;
 export default function CabinInterior() {
   const navigate = useNavigate();
   const splineSceneRef = useRef(null);
+  const touchControlsRef = useRef(null);
   
   // Détection de l'appareil
   const { 
@@ -226,19 +227,27 @@ export default function CabinInterior() {
   }, []);
   
   // Utiliser le hook des contrôles tactiles
-  const { attachTouchListeners } = useTouchControls({
+  const { attachTouchListeners, stopInertia } = useTouchControls({
     onMouseMove: (e) => {
       if (splineSceneRef.current) {
         splineSceneRef.current.handleMouseMove(e);
       }
     },
-    sensitivity: isMobile ? 0.5 : 0.8
+    sensitivity: isMobile ? 1.8 : 1.2
   });
+  
+  // Stockez ces fonctions dans la référence
+  touchControlsRef.current = { stopInertia };
   
   /**
    * Actions pour les boutons de navigation mobile
    */
   const handleMoveForward = useCallback(() => {
+    // Arrêter l'inertie existante avant de déplacer la caméra
+    if (touchControlsRef.current && touchControlsRef.current.stopInertia) {
+      touchControlsRef.current.stopInertia();
+    }
+  
     if (!splineSceneRef.current) return;
     
     try {
@@ -254,6 +263,10 @@ export default function CabinInterior() {
   }, []);
   
   const handleMoveBackward = useCallback(() => {
+    // Arrêter l'inertie existante avant de déplacer la caméra
+    if (touchControlsRef.current && touchControlsRef.current.stopInertia) {
+      touchControlsRef.current.stopInertia();
+    }
     if (!splineSceneRef.current) return;
     
     try {

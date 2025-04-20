@@ -92,6 +92,13 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
   
       // Pour les événements tactiles, appliquer un filtrage supplémentaire
       if (isTouchEvent) {
+        filteredEvent.deltaX = touch.clientX - state.lastX;
+        filteredEvent.deltaY = touch.clientY - state.lastY;
+        
+        // Normaliser sur l'axe -1 à 1
+        filteredEvent.normalizedX = (filteredEvent.clientX / window.innerWidth) * 2 - 1;
+        filteredEvent.normalizedY = (filteredEvent.clientY / window.innerHeight) * 2 - 1;
+      
         const smoothingFactor = 0.35; // Plus petit = plus de lissage
         
         // Si les valeurs normalisées sont définies, les utiliser directement

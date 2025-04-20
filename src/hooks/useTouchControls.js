@@ -42,12 +42,12 @@ export default function useTouchControls({
   
   // Paramètres pour le comportement du swipe
   const swipeOptions = {
-    damping: 0.94,        // Amortissement plus lent pour une inertie plus longue
-    minSpeed: 0.2,        // Vitesse minimale réduite pour continuer l'inertie plus longtemps
-    swipeThreshold: 2,    // Seuil de vélocité réduit pour que le swipe soit plus sensible
-    swipeMultiplier: 1.2, // Multiplicateur augmenté pour un effet plus prononcé 
-    swipeDurationThreshold: 400, // Durée max augmentée pour considérer un mouvement comme un swipe
-    minSwipeDistance: 15   // Distance minimale pour un swipe, réduite
+    damping: 0.92, // Amortissement plus rapide
+    minSpeed: 0.1, // Seuil plus bas pour maintenir l'inertie
+    swipeThreshold: 1.5, // Seuil de vélocité plus bas
+    swipeMultiplier: 1.5, // Effet plus prononcé
+    swipeDurationThreshold: 500, // Durée max augmentée
+    minSwipeDistance: 10 // Distance minimale réduite
   };
   
   /**
@@ -149,11 +149,11 @@ export default function useTouchControls({
     state.lastY = touch.clientY;
     state.lastTime = now;
     
-    // Empêcher le comportement par défaut si on est en train de suivre un mouvement horizontal
-    if (state.moving && state.moveType === 'horizontal') {
-      e.preventDefault();
-      e.stopPropagation();
-    }
+    // Par ceci - ne bloquer la propagation que si le mouvement est confirmé comme horizontal
+if (state.moveType === 'horizontal' && Math.abs(state.totalX) > swipeOptions.minSwipeDistance) {
+  e.preventDefault();
+  e.stopPropagation();
+}
   }, [threshold]);
   
   /**
