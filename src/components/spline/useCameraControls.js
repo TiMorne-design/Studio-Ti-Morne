@@ -358,7 +358,7 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
     if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
     
     // Détecter si l'événement vient d'un appareil tactile
-    const isTouchEvent = e.isTouchEvent === true;
+    const isTouchEvent = e.isTouchEvent === true || e.type === 'touchmove';
     
     // Ignorer le mouvement de souris sur la terrasse SAUF pour les événements tactiles
     // OU après avoir fait le premier demi-tour
@@ -375,6 +375,9 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
   const applyResponseCurve = (value, exponent = 3) => {
     return Math.sign(value) * Math.pow(Math.abs(value), exponent);
   };
+
+  // Ajuster la sensibilité pour les événements tactiles
+  const sensitivityFactor = isTouchEvent ? 1.2 : 1.0;
   
   // Appliquer la courbe de réponse pour un mouvement plus précis au centre
   const xModified = Math.sign(x) * Math.pow(Math.abs(x), 1.2);

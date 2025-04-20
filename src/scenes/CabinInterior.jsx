@@ -690,21 +690,21 @@ const initializeTouchControls = useCallback(() => {
   const pixelRatio = window.devicePixelRatio || 1;
   
   // Ajuster la sensibilité en fonction de la taille d'écran et de la densité de pixels
-  let touchSensitivity = 0.5; // Valeur de base
+  let touchSensitivity = 1.5; // Valeur de base
   
   // Réduire la sensibilité sur les petits écrans à haute densité
   if (window.innerWidth < 400 && pixelRatio > 2) {
-    touchSensitivity = 0.35;
+    touchSensitivity = 1.2;
   } 
   // Réduire légèrement sur les tablettes
   else if (isTablet) {
-    touchSensitivity = 0.45;
+    touchSensitivity = 1.3;
   }
   
   // Vérifier l'orientation
   if (isLandscape) {
     // Réduire encore plus en mode paysage
-    touchSensitivity *= 0.85;
+    touchSensitivity *= 0.9;
   }
   
   logger.log("Initialisation des contrôles tactiles:", {
@@ -718,7 +718,18 @@ const initializeTouchControls = useCallback(() => {
   const rootElement = document.getElementById('root');
   if (rootElement) {
     const cleanup = attachTouchListeners(rootElement);
-    return cleanup;
+    
+    // Injecter une fonction globale pour forcer la fin de l'inertie si nécessaire
+    window.__stopTouchInertia = () => {
+      if (splineSceneRef.current) {
+        console.log("Arrêt forcé de l'inertie tactile");
+      }
+    };
+    
+    return () => {
+      cleanup();
+      delete window.__stopTouchInertia;
+    };
   }
   
   return () => {};

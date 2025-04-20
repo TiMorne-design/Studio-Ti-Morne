@@ -87,9 +87,11 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
         filterMouseEvent.prevX = event.normalizedX || 0;
         filterMouseEvent.prevY = event.normalizedY || 0;
       }
+
+      const isTouchEvent = event.isTouchEvent === true;
   
       // Pour les événements tactiles, appliquer un filtrage supplémentaire
-      if (event.isTouchEvent) {
+      if (isTouchEvent) {
         const smoothingFactor = 0.35; // Plus petit = plus de lissage
         
         // Si les valeurs normalisées sont définies, les utiliser directement
@@ -115,6 +117,14 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
           };
         }
       }
+
+      // S'assurer que le flag isTouchEvent est transmis pour tous les événements tactiles
+    if (isTouchEvent && !event.normalizedX) {
+      return {
+        ...event,
+        isTouchEvent: true
+      };
+    }
       
       // Pour les événements de souris (non tactiles), pas de filtrage supplémentaire
       return event;
