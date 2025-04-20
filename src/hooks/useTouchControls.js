@@ -139,9 +139,8 @@ export default function useTouchControls({
       if (Math.abs(deltaX) > threshold) {
         touchStateRef.current.moving = true;
         
-        // SOLUTION : Inverser le signe pour le mouvement continu
-        // Lorsque le doigt va à droite (deltaX positif), la caméra doit aller à droite
-        cameraPosRef.current.x += -deltaX * sensitivity * 0.02;
+         // Lorsque le doigt va à droite (deltaX positif), la caméra doit aller à droite
+        cameraPosRef.current.x += deltaX * sensitivity * 0.02;
         
         // Limiter la rotation pour éviter les extrêmes
         const maxRotation = Math.PI * 0.4; // ~72 degrés

@@ -232,7 +232,7 @@ export default function CabinInterior() {
         splineSceneRef.current.handleMouseMove(e);
       }
     },
-    sensitivity: isMobile ? 3.5 : 2.5 // Augmenter légèrement la sensibilité pour compenser le swipe
+    sensitivity: isMobile ? 1.0 : 1.5
   });
   
   /**
