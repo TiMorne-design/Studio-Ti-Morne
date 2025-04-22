@@ -61,10 +61,16 @@ const BaseOverlay = ({
     <div
       className="overlay-inner"
         onClick={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        onTouchMove={(e) => {
-          // Ne pas propager les événements tactiles dans l'overlay
+        onTouchStart={(e) => {
+          // Ne pas arrêter la propagation ici, juste empêcher la fermeture
           e.stopPropagation();
+        }}
+        onTouchMove={(e) => {
+          // Ne pas arrêter la propagation des mouvements
+          // Laisser les swipes fonctionner partout sauf dans la zone de contenu
+          if (e.target.closest('.overlay-content')) {
+            e.stopPropagation();
+          }
         }}
       >
 

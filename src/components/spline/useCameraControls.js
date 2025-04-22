@@ -360,11 +360,24 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
     // Détecter si l'événement vient d'un appareil tactile
     const isTouchEvent = e.isTouchEvent === true || e.type === 'touchmove';
     
-    // Ignorer le mouvement de souris sur la terrasse SAUF pour les événements tactiles
-    // OU après avoir fait le premier demi-tour
-    if (isOnTerrace.current && !isTouchEvent && !hasPerformedFirstTurn.current) {
-      return;
-    }
+    // Ajouter un log pour les événements tactiles
+  if (isTouchEvent) {
+    logger.log("Événement tactile détecté dans useCameraControls", {
+      normalizedX: e.normalizedX,
+      normalizedY: e.normalizedY,
+      isOnTerrace: isOnTerrace.current,
+      hasPerformedFirstTurn: hasPerformedFirstTurn.current
+    });
+  }
+  
+  // MODIFICATION IMPORTANTE: Permettre les événements tactiles même sur la terrasse 
+  // avant le premier demi-tour
+  const allowTouchOnTerrace = isTouchEvent;
+  
+  // Vérifier si on est sur la terrasse et si on doit ignorer l'événement
+  if (isOnTerrace.current && !allowTouchOnTerrace && !hasPerformedFirstTurn.current) {
+    return;
+  }
     
     // Normaliser la position de la souris entre -1 et 1
   const x = e.normalizedX || (e.clientX / window.innerWidth) * 2 - 1;
@@ -415,7 +428,15 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
   
   // Assurer que la rotation Z reste à 0
   targetRotation.current.z = 0;
-}, [controlsEnabled]);
+
+  // Ajouter un log pour voir les valeurs de rotation appliquées
+  if (isTouchEvent) {
+    logger.log("Rotation caméra tactile appliquée:", {
+      rotationY: targetRotation.current.y,
+      xModified: xModified
+    });
+  }
+}, [controlsEnabled, config.maxPositionOffset, config.centerWidthZone, config.maxSideRotation, config.maxVerticalAngle]);
   
   /**
    * Sauvegarde l'état actuel de la caméra

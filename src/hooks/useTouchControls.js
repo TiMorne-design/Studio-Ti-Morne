@@ -101,10 +101,18 @@ export default function useTouchControls({
     // Vérifications de base
     if (!touchStateRef.current || e.touches.length !== 1) return;
 
-    // Ignorer si l'événement provient d'un overlay
-    if (e.target.closest('.overlay-content') || e.target.closest('[class*="overlay-container"]')) {
-      return;
-    }
+    // Toujours capturer l'événement pour le débogage
+  logger.log("Touch move détecté", e.touches[0].clientX, e.touches[0].clientY);
+
+
+     // Si le mouvement est dans un overlay, l'ignorer mais ne pas l'arrêter
+  const isInOverlay = e.target.closest('.overlay-content') || 
+  e.target.closest('[class*="overlay-container"]');
+
+  if (isInOverlay) {
+    logger.log("Touch dans un overlay, ignoré");
+    return;
+  }
     
     const touch = e.touches[0];
     const now = Date.now();
@@ -149,12 +157,31 @@ export default function useTouchControls({
     state.lastY = touch.clientY;
     state.lastTime = now;
     
-    // Par ceci - ne bloquer la propagation que si le mouvement est confirmé comme horizontal
-if (state.moveType === 'horizontal' && Math.abs(state.totalX) > swipeOptions.minSwipeDistance) {
-  e.preventDefault();
-  e.stopPropagation();
-}
-  }, [threshold]);
+    // Convertir en coordonnées normalisées pour la rotation (-1 à 1)
+  const normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
+  
+  // Envoyer directement le mouvement à la caméra pour la rotation horizontale
+  if (state.moveType === 'horizontal' && onMouseMove) {
+    // Créer un événement simulé avec le flag tactile
+    const simulatedEvent = {
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+      normalizedX: normalizedX,
+      normalizedY: 0, // On maintient vertical à 0 pour mieux contrôler
+      isTouchEvent: true,
+      type: 'touchmove'
+    };
+    
+    // Envoyer l'événement directement
+    onMouseMove(simulatedEvent);
+    
+    // Bloquer la propagation mais seulement si c'est un mouvement horizontal confirmé
+    if (Math.abs(state.totalX) > swipeOptions.minSwipeDistance) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }
+}, [threshold, onMouseMove, swipeOptions.minSwipeDistance]);
   
   /**
    * Applique l'inertie après un swipe
@@ -166,7 +193,6 @@ if (state.moveType === 'horizontal' && Math.abs(state.totalX) > swipeOptions.min
     stopInertia();
     
     // Vélocité initiale (pixels par frame à 60fps)
-    // Ajuster pour que ce soit plus sensible
     let currentVelocity = velocity * swipeOptions.swipeMultiplier;
     
     // S'assurer qu'elle est dans la bonne direction
@@ -175,9 +201,7 @@ if (state.moveType === 'horizontal' && Math.abs(state.totalX) > swipeOptions.min
     // Limiter la vélocité maximale
     const maxVelocity = 4.0;
     currentVelocity = Math.sign(currentVelocity) * Math.min(Math.abs(currentVelocity), maxVelocity);
-    
-    logger.log("Inertie appliquée avec vélocité initiale:", currentVelocity);
-    
+        
     // Activation de l'inertie
     inertiaRef.current.active = true;
     
@@ -213,6 +237,11 @@ if (state.moveType === 'horizontal' && Math.abs(state.totalX) > swipeOptions.min
         isTouchEvent: true, // Crucial pour être traité correctement
         type: 'touchmove'   // Ajouter le type d'événement
       };
+
+      // Log pour débogage
+    if (Math.abs(currentVelocity) > 0.5) {
+      logger.log("Inertie active - vélocité:", currentVelocity.toFixed(2), "position:", normalizedX.toFixed(2));
+    }
       
       // Envoyer l'événement aux contrôles de caméra
       onMouseMove(simulatedEvent);
@@ -232,8 +261,8 @@ if (state.moveType === 'horizontal' && Math.abs(state.totalX) > swipeOptions.min
     inertiaIntervalRef.current = requestAnimationFrame(inertiaStep);
     
     // Pour le débogage
-    return () => stopInertia();
-  }, [onMouseMove]);
+  return () => stopInertia();
+}, [onMouseMove, swipeOptions.swipeMultiplier, swipeOptions.damping, swipeOptions.minSpeed, stopInertia]);
   
   /**
    * Gestionnaire pour la fin du toucher

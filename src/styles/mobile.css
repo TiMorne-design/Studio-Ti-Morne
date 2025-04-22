@@ -17,6 +17,7 @@
       width: 100% !important;
       border-radius: 0 !important;
       padding: 20px !important;
+      touch-action: pan-y;
     }
 
     /* Permettre le défilement tactile dans les overlays */
@@ -25,8 +26,7 @@
       -webkit-overflow-scrolling: touch !important;
       max-height: 75vh !important;
       padding-right: 10px !important;
-      touch-action: pan-y !important;
-    }
+   }
     
     /* Ajuster les titres des overlays */
     div[class*="overlay-container"] h1 {
@@ -77,6 +77,11 @@
     .mobile-guide-content p {
       margin: 5px 0;
     }
+
+    /* Zone de contenu principal où les swipes devraient fonctionner */
+.spline-container {
+  touch-action: none; /* Désactiver tous les comportements tactiles par défaut */
+}
     
     /* Animation de fondu pour le guide */
     @keyframes fade-in-out {

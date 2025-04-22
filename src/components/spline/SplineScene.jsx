@@ -81,66 +81,61 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
     // Gestion des contrôles de caméra
     handleButtonClick,
     handleWheel, 
-    handleMouseMove: (e) => {const filterMouseEvent = (event) => {
-      // Référence statique pour stocker les valeurs précédentes
-      if (!filterMouseEvent.prevX) {
-        filterMouseEvent.prevX = event.normalizedX || 0;
-        filterMouseEvent.prevY = event.normalizedY || 0;
-      }
-
-      const isTouchEvent = event.isTouchEvent === true;
-  
-      // Pour les événements tactiles, appliquer un filtrage supplémentaire
-      if (isTouchEvent) {
-        filteredEvent.deltaX = touch.clientX - state.lastX;
-        filteredEvent.deltaY = touch.clientY - state.lastY;
-        
-        // Normaliser sur l'axe -1 à 1
-        filteredEvent.normalizedX = (filteredEvent.clientX / window.innerWidth) * 2 - 1;
-        filteredEvent.normalizedY = (filteredEvent.clientY / window.innerHeight) * 2 - 1;
+    handleMouseMove: (e) => {
+      const filterMouseEvent = (event) => {
+        // Référence statique pour stocker les valeurs précédentes
+        if (!filterMouseEvent.prevX) {
+          filterMouseEvent.prevX = event.normalizedX || 0;
+          filterMouseEvent.prevY = event.normalizedY || 0;
+        }
+    
+        const isTouchEvent = event.isTouchEvent === true || event.type === 'touchmove';
       
-        const smoothingFactor = 0.35; // Plus petit = plus de lissage
-        
-        // Si les valeurs normalisées sont définies, les utiliser directement
-        if (event.normalizedX !== undefined) {
-          // Appliquer un lissage entre l'ancienne et la nouvelle valeur
-          const smoothedX = filterMouseEvent.prevX * (1 - smoothingFactor) + 
-                             event.normalizedX * smoothingFactor;
-          const smoothedY = filterMouseEvent.prevY * (1 - smoothingFactor) + 
-                             (event.normalizedY || 0) * smoothingFactor;
+        // Pour les événements tactiles, appliquer un filtrage supplémentaire
+        if (isTouchEvent) {
+          // Créer un nouvel objet pour l'événement filtré
+          const filteredEvent = { ...event };
           
-          // Mettre à jour les valeurs précédentes
-          filterMouseEvent.prevX = smoothedX;
-          filterMouseEvent.prevY = smoothedY;
-          
-          // Créer un nouvel événement avec les valeurs lissées
+          // Si les valeurs normalisées sont définies, les utiliser directement
+          if (event.normalizedX !== undefined) {
+            // Appliquer un lissage entre l'ancienne et la nouvelle valeur
+            const smoothingFactor = 0.35; // Plus petit = plus de lissage
+            const smoothedX = filterMouseEvent.prevX * (1 - smoothingFactor) + 
+                               event.normalizedX * smoothingFactor;
+            const smoothedY = filterMouseEvent.prevY * (1 - smoothingFactor) + 
+                               (event.normalizedY || 0) * smoothingFactor;
+            
+            // Mettre à jour les valeurs précédentes
+            filterMouseEvent.prevX = smoothedX;
+            filterMouseEvent.prevY = smoothedY;
+            
+            // Mettre à jour l'événement avec les valeurs lissées
+            filteredEvent.normalizedX = smoothedX;
+            filteredEvent.normalizedY = smoothedY;
+            // Mettre à jour les coordonnées clientX/Y pour cohérence
+            filteredEvent.clientX = window.innerWidth * (smoothedX + 1) / 2;
+            filteredEvent.clientY = window.innerHeight * (smoothedY + 1) / 2;
+            
+            return filteredEvent;
+          }
+        }
+    
+        // S'assurer que le flag isTouchEvent est transmis pour tous les événements tactiles
+        if (isTouchEvent && !event.normalizedX) {
           return {
             ...event,
-            normalizedX: smoothedX,
-            normalizedY: smoothedY,
-            // Mettre à jour les coordonnées clientX/Y pour cohérence
-            clientX: window.innerWidth * (smoothedX + 1) / 2,
-            clientY: window.innerHeight * (smoothedY + 1) / 2
+            isTouchEvent: true
           };
         }
-      }
-
-      // S'assurer que le flag isTouchEvent est transmis pour tous les événements tactiles
-    if (isTouchEvent && !event.normalizedX) {
-      return {
-        ...event,
-        isTouchEvent: true
+          
+        // Pour les événements de souris (non tactiles), pas de filtrage supplémentaire
+        return event;
       };
-    }
-      
-      // Pour les événements de souris (non tactiles), pas de filtrage supplémentaire
-      return event;
-    };
-    
-    // Filtrer l'événement avant de le transmettre
-    const filteredEvent = filterMouseEvent(e);
-    handleMouseMove(filteredEvent);
-  },
+        
+      // Filtrer l'événement avant de le transmettre
+      const filteredEvent = filterMouseEvent(e);
+      handleMouseMove(filteredEvent);
+    },
   
     restorePreviousCameraState,
     hasPreviousState,

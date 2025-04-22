@@ -707,17 +707,17 @@ const initializeTouchControls = useCallback(() => {
   
   // Réduire la sensibilité sur les petits écrans à haute densité
   if (window.innerWidth < 400 && pixelRatio > 2) {
-    touchSensitivity = 1.2;
+    touchSensitivity = 1.5;
   } 
   // Réduire légèrement sur les tablettes
   else if (isTablet) {
-    touchSensitivity = 1.3;
+    touchSensitivity = 1.6;
   }
   
   // Vérifier l'orientation
   if (isLandscape) {
     // Réduire encore plus en mode paysage
-    touchSensitivity *= 0.9;
+    touchSensitivity *= 0.95;
   }
   
   logger.log("Initialisation des contrôles tactiles:", {
@@ -727,26 +727,24 @@ const initializeTouchControls = useCallback(() => {
     pixelRatio
   });
   
-  // Appliquer les contrôles tactiles
-  const rootElement = document.getElementById('root');
-  if (rootElement) {
-    const cleanup = attachTouchListeners(rootElement);
-    
-    // Injecter une fonction globale pour forcer la fin de l'inertie si nécessaire
-    window.__stopTouchInertia = () => {
-      if (splineSceneRef.current) {
-        console.log("Arrêt forcé de l'inertie tactile");
-      }
-    };
-    
-    return () => {
-      cleanup();
-      delete window.__stopTouchInertia;
-    };
-  }
+  // Appliquer les contrôles tactiles à la fenêtre entière, pas juste au root
+  // Cela évite les problèmes de propagation des événements
+  const cleanup = attachTouchListeners(window);
   
-  return () => {};
+  // Injecter une fonction globale pour forcer la fin de l'inertie si nécessaire
+  window.__stopTouchInertia = () => {
+    if (touchControlsRef.current && touchControlsRef.current.stopInertia) {
+      touchControlsRef.current.stopInertia();
+      console.log("Arrêt forcé de l'inertie tactile");
+    }
+  };
+  
+  return () => {
+    cleanup();
+    delete window.__stopTouchInertia;
+  };
 }, [isMobile, isTablet, isLandscape, attachTouchListeners]);
+
 
 // Ensuite remplacez l'effet existant par:
 useEffect(() => {
