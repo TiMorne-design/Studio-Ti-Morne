@@ -1,6 +1,6 @@
 /**
  * Composant principal pour l'intérieur du chalet
- * Optimisé pour desktop et mobile, avec utilisation des contextes
+ * Version refactorisée avec le système d'interaction unifié
  */
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -15,7 +15,6 @@ import MobileControls from '../components/mobile/MobileControls';
 import MobileNavigationToolbar from '../components/mobile/MobileNavigationToolbar';
 import LiteExperience from '../components/mobile/LiteExperience';
 import { useSceneState } from '../contexts/SceneContext';
-import useTouchManager from '../hooks/useTouchManager';
 import useDeviceDetection from '../hooks/useDeviceDetection';
 import useDoorTrigger from '../hooks/useDoorTrigger';
 import { BUTTON_IDS, OBJECT_IDS } from '../constants/ids';
@@ -42,60 +41,8 @@ import {
 const { logger } = debugUtils;
 
 /**
- * Fonction d'initialisation des contrôles tactiles avec le gestionnaire centralisé
- */
-const initializeTouchControls = (rootElement, splineSceneRef, onObjectClick) => {
-  if (!rootElement || !splineSceneRef.current) return () => {};
-  
-  // Obtenir les fonctions d'interaction de SplineScene
-  const splineInstance = splineSceneRef.current;
-  
-  // Gestionnaire pour les événements de swipe
-  const handleSwipe = (swipeEvent) => {
-    if (splineInstance && splineInstance.handleTouchSwipe) {
-      splineInstance.handleTouchSwipe(swipeEvent);
-    }
-  };
-  
-  // Gestionnaire pour les interactions avec les objets
-  const handleObjectInteraction = (interaction) => {
-    if (!splineInstance || !onObjectClick) return;
-    
-    if (interaction.type === 'tap') {
-      // Simuler un clic sur objet Spline
-      const target = interaction.target;
-      const objectName = target.dataset?.objectName || '';
-      const objectId = target.dataset?.objectId || '';
-      
-      if (objectName || objectId) {
-        logger.log('Touch interaction avec objet:', objectName, objectId);
-        onObjectClick(objectName, splineInstance.getSplineInstance(), objectId);
-      }
-    }
-  };
-  
-  // Créer une instance de gestionnaire tactile
-  const touchManager = useTouchManager({
-    onSwipe: handleSwipe,
-    onObjectInteraction: handleObjectInteraction
-  });
-  
-  // Attacher les gestionnaires d'événements
-  const cleanup = touchManager.attachTouchHandlers(rootElement);
-  
-  // Exposer globalement le contrôle de l'inertie pour pouvoir l'arrêter si nécessaire
-  window.__stopTouchInertia = touchManager.stopInertia;
-  
-  // Fonction de nettoyage
-  return () => {
-    cleanup();
-    delete window.__stopTouchInertia;
-  };
-};
-
-/**
  * Composant de l'intérieur du chalet avec interactions 3D
- * Adaptation responsive pour mobile et desktop
+ * Adaptation responsive pour mobile et desktop avec le système d'interaction unifié
  */
 export default function CabinInterior() {
   const navigate = useNavigate();
@@ -189,52 +136,25 @@ export default function CabinInterior() {
   }, [checkProximity, doorState.isOpen]);
   
   /**
-   * Gestion du défilement pour avancer/reculer
-   */
-  const handleWheel = useCallback((e) => {
-    if (splineSceneRef.current) {
-      splineSceneRef.current.handleWheel(e);
-    }
-  }, []);
-  
-  /**
    * Actions pour les boutons de navigation mobile
    */
   const handleMoveForward = useCallback(() => {
-    // Arrêter l'inertie existante avant de déplacer la caméra
-    if (window.__stopTouchInertia) {
-      window.__stopTouchInertia();
-    }
-  
     if (!splineSceneRef.current) return;
     
     try {
-      if (splineSceneRef.current.moveCamera) {
-        splineSceneRef.current.moveCamera(-400);
-      } else {
-        const simulatedEvent = { deltaY: -300 };
-        splineSceneRef.current.handleWheel(simulatedEvent);
-      }
+      // Utiliser la méthode moveCamera pour gérer le déplacement
+      splineSceneRef.current.moveCamera(-400);
     } catch (error) {
       console.error("Erreur lors du déplacement vers l'avant:", error);
     }
   }, []);
   
   const handleMoveBackward = useCallback(() => {
-    // Arrêter l'inertie existante avant de déplacer la caméra
-    if (window.__stopTouchInertia) {
-      window.__stopTouchInertia();
-    }
-    
     if (!splineSceneRef.current) return;
     
     try {
-      if (splineSceneRef.current.moveCamera) {
-        splineSceneRef.current.moveCamera(400);
-      } else {
-        const simulatedEvent = { deltaY: 300 };
-        splineSceneRef.current.handleWheel(simulatedEvent);
-      }
+      // Utiliser la méthode moveCamera pour gérer le déplacement
+      splineSceneRef.current.moveCamera(400);
     } catch (error) {
       console.error("Erreur lors du déplacement vers l'arrière:", error);
     }
@@ -650,7 +570,7 @@ export default function CabinInterior() {
     }
   }, [isMobile, showMobileGuide]);
   
-  // Effet pour initialiser les contrôles tactiles
+  // Effet pour initialiser les variables globales
   useEffect(() => {
     // Initialiser les variables globales
     window.__doorThresholdTriggered = false;
@@ -658,29 +578,6 @@ export default function CabinInterior() {
     window.__manualPortfolioButtonClick = false;
     window.__portfolioMode = false;
     window.__doorIsOpen = false;
-    
-    // Initialiser les contrôles tactiles si c'est un appareil mobile
-    if ((isMobile || isTablet) && rootElementRef.current) {
-      logger.log("Initialisation des contrôles tactiles avec le nouveau gestionnaire");
-      
-      const cleanup = initializeTouchControls(
-        rootElementRef.current, 
-        splineSceneRef,
-        handleObjectClick
-      );
-      
-      return () => {
-        // Nettoyer les contrôles tactiles
-        cleanup();
-        
-        // Nettoyer les variables globales
-        delete window.__doorThresholdTriggered;
-        delete window.__portfolioDoorLocked;
-        delete window.__manualPortfolioButtonClick;
-        delete window.__portfolioMode;
-        delete window.__doorIsOpen;
-      };
-    }
     
     return () => {
       // Nettoyer les variables globales
@@ -690,7 +587,7 @@ export default function CabinInterior() {
       delete window.__portfolioMode;
       delete window.__doorIsOpen;
     };
-  }, [isMobile, isTablet, handleObjectClick]);
+  }, []);
   
   // Effet pour vérifier régulièrement la proximité de la porte
   useEffect(() => {
@@ -753,7 +650,7 @@ export default function CabinInterior() {
     <div 
       ref={rootElementRef}
       style={{ position: 'relative', width: '100%', height: '100vh' }}
-      className="cabin-interior-container touch-enabled"
+      className="cabin-interior-container"
     >
       <SplineScene
         ref={splineSceneRef}
@@ -818,7 +715,7 @@ export default function CabinInterior() {
         </div>
       )}
       
-      {/* Contrôles de mouvement sur mobile - optimisés avec le nouveau gestionnaire tactile */}
+      {/* Contrôles de mouvement sur mobile */}
       {(isMobile || isTablet) && !showAboutOverlay && !showPrestationOverlay && 
         !showWelcomeOverlay && !showOrientationOverlay && (
         <MobileControls

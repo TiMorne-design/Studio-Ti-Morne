@@ -17,7 +17,7 @@ const { logger } = debugUtils;
  * @returns {Object} - Fonctions et états pour la gestion de la caméra
  */
 export default function useCameraControls(cameraRef, splineRef) {
-  // État pour activer/désactiver les contButton_rôles
+  // État pour activer/désactiver les contrôles
   const [controlsEnabled, setControlsEnabled] = useState(true);
   
   // Références pour les positions et rotations
@@ -29,6 +29,7 @@ export default function useCameraControls(cameraRef, splineRef) {
   // Référence pour la boucle d'animation
   const animationFrameRef = useRef(null);
 
+  // Flag pour suivre si le premier demi-tour a été effectué
   const hasPerformedFirstTurn = useRef(false);
   
   // Direction du mouvement (1 = avant, -1 = arrière)
@@ -53,16 +54,9 @@ export default function useCameraControls(cameraRef, splineRef) {
     centerWidthZone: 0.5,      // Zone centrale horizontale où le mouvement vertical est permis
     maxSideRotation: 1.2,      // Rotation horizontale maximale (environ 69 degrés)
     maxVerticalAngle: 0.3 ,     // Rotation verticale maximale (environ 17 degrés)
-    terraceSpeedMultiplier: 3.0
+    terraceSpeedMultiplier: 3.0 // Multiplicateur de vitesse sur la terrasse
   };
 
-  const handlePortfolioButtonClick = useCallback(() => {
-    // Ne pas sauvegarder l'état complet, juste marquer que les contrôles sont désactivés
-    setControlsEnabled(false);
-    isAfterButtonClick.current = true;
-    logger.log("Contrôles de caméra désactivés pour le bouton portfolio sans sauvegarde d'état");
-  }, []);
-  
   /**
    * Initialise les contrôles de caméra
    * @param {Object} camera - Objet caméra à contrôler
@@ -128,50 +122,47 @@ export default function useCameraControls(cameraRef, splineRef) {
         // Limites de la pièce
         const limits = cameraUtils.getCameraLimits();
         
-// Définir un seuil avancé pour l'ouverture de la porte
-const doorOpeningThreshold = limits.doorTrigger + 500; // Ajustez cette valeur (-50) selon vos besoins
+        // Définir un seuil avancé pour l'ouverture de la porte
+        const doorOpeningThreshold = limits.doorTrigger + 500;
 
-// Vérification pour l'ouverture anticipée de la porte
-if (isOnTerrace.current && 
-  currentPos.z <= doorOpeningThreshold && 
-  currentPos.z > limits.doorThreshold &&
-  !doorOpenedRecently.current &&
-   !window.__doorIsOpen && 
-  !window.__doorThresholdTriggered) {
+        // Vérification pour l'ouverture anticipée de la porte
+        if (isOnTerrace.current && 
+          currentPos.z <= doorOpeningThreshold && 
+          currentPos.z > limits.doorThreshold &&
+          !doorOpenedRecently.current &&
+          !window.__doorIsOpen && 
+          !window.__doorThresholdTriggered) {
 
-  // Ouvrir la porte en avance
-  if (splineRef.current) {
-    // Marquer l'ouverture comme automatique (si ce n'est pas déjà fait)
-    if (!window.__automaticDoorOpening) {
-      window.__automaticDoorOpening = true;
-      window.__doorThresholdTriggered = true;
-      doorOpenedRecently.current = true;
-      window.__doorIsOpen = true;
-      
-      // Émettre l'événement mouseUp sur l'objet PORTE_OUVERT (pas le bouton)
-      try {
-        splineHelpers.emitEvent(splineRef.current, 'mouseUp', OBJECT_IDS.PORTE_OUVERT);
-        logger.log("Ouverture anticipée de la porte avant le passage du seuil");
-      } catch (error) {
-        logger.error("Erreur lors de l'ouverture anticipée:", error);
-      }
-      
-      // Réinitialiser les flags après un délai
-      setTimeout(() => {
-        window.__automaticDoorOpening = false;
-        window.__doorThresholdTriggered = false;
-      
-      // Ajouter un délai supplémentaire avant de permettre une nouvelle ouverture
-      setTimeout(() => {
-        doorOpenedRecently.current = false;
-      }, 3000);
-    }, 1000);
-    }
-  }
-}
-
-// Détecter si c'est un appareil tactile
-const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+          // Ouvrir la porte en avance
+          if (splineRef.current) {
+            // Marquer l'ouverture comme automatique (si ce n'est pas déjà fait)
+            if (!window.__automaticDoorOpening) {
+              window.__automaticDoorOpening = true;
+              window.__doorThresholdTriggered = true;
+              doorOpenedRecently.current = true;
+              window.__doorIsOpen = true;
+              
+              // Émettre l'événement mouseUp sur l'objet PORTE_OUVERT (pas le bouton)
+              try {
+                splineHelpers.emitEvent(splineRef.current, 'mouseUp', OBJECT_IDS.PORTE_OUVERT);
+                logger.log("Ouverture anticipée de la porte avant le passage du seuil");
+              } catch (error) {
+                logger.error("Erreur lors de l'ouverture anticipée:", error);
+              }
+              
+              // Réinitialiser les flags après un délai
+              setTimeout(() => {
+                window.__automaticDoorOpening = false;
+                window.__doorThresholdTriggered = false;
+              
+                // Ajouter un délai supplémentaire avant de permettre une nouvelle ouverture
+                setTimeout(() => {
+                  doorOpenedRecently.current = false;
+                }, 3000);
+              }, 1000);
+            }
+          }
+        }
 
         // Vérification de la position Z pour détecter le passage de la porte
         if (isOnTerrace.current) {
@@ -179,35 +170,25 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
           if (currentPos.z <= limits.doorThreshold) {
             isOnTerrace.current = false;
             logger.log("Entrée dans le chalet - rotation activée");
-
-         }
+          }
         } else if (!isOnTerrace.current && currentPos.z > limits.doorThreshold) {
           // Passage de l'intérieur à la terrasse
           isOnTerrace.current = true;
-          
-          // Ajouter un log ici pour voir l'état quand on retourne sur la terrasse
-           logger.log("Retour sur la terrasse - hasPerformedFirstTurn:", hasPerformedFirstTurn.current, "isTouchDevice:", isTouchDevice);
-
-           // Sur desktop, définir la rotation neutre comme cible si aucun demi-tour n'a été fait
-  if (!isTouchDevice && !hasPerformedFirstTurn.current) {
-    const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
-    targetRotation.current.y = baseAngle;
-    targetRotation.current.x = 0;
-    targetPosition.current.x = initialPosition.current.x;
-    targetPosition.current.y = initialPosition.current.y;
-    logger.log("Sortie sur la terrasse - rotation désactivée pour desktop (avant premier demi-tour)");
-  }
-}
+          logger.log("Retour sur la terrasse - hasPerformedFirstTurn:", hasPerformedFirstTurn.current);
+        }
         
         // Appliquer un mouvement fluide à la position Z (avancer/reculer)
         const dz = targetPosition.current.z - currentPos.z;
         currentPos.z += dz * config.smoothFactor;
 
+        // Déterminer si nous sommes sur un appareil tactile
+        // (c'est une info qui nous est passée par handleMouseMove via l'événement)
+        const isTouchDevice = window.__isTouchDevice === true;
 
         // Sur desktop ET sur terrasse ET avant le premier demi-tour, désactiver les contrôles de rotation
         if (isOnTerrace.current && !isTouchDevice && !hasPerformedFirstTurn.current) {
-        // Ne pas appliquer de rotation, mais recentrer progressivement
-        const returnFactor = config.smoothFactor;
+          // Ne pas appliquer de rotation, mais recentrer progressivement
+          const returnFactor = config.smoothFactor;
           
           // Recentrage de la position horizontale
           currentPos.x += (initialPosition.current.x - currentPos.x) * returnFactor;
@@ -220,8 +201,8 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
         } else {
           // Dans tous les autres cas (mobile tout le temps, desktop à l'intérieur ou après demi-tour),
           // permettre la rotation normale
-           const dx = targetPosition.current.x - currentPos.x;
-           const dy = targetPosition.current.y - currentPos.y;
+          const dx = targetPosition.current.x - currentPos.x;
+          const dy = targetPosition.current.y - currentPos.y;
           
           currentPos.x += dx * config.smoothFactor;
           currentPos.y += dy * config.smoothFactor;
@@ -245,14 +226,15 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
   }, [controlsEnabled]);
   
   /**
-   * Inverse la direction de déplacement
+   * Inverse la direction de déplacement et effectue un demi-tour
    */
   const invertMovementDirection = useCallback(() => {
     // Vérifier si on est sur la terrasse et si on n'a pas encore fait de demi-tour
-  if (isOnTerrace.current && !hasPerformedFirstTurn.current) {
-    logger.log("Demi-tour sur la terrasse bloqué - effectuez d'abord un demi-tour au fond du chalet");
-    return; // Bloquer l'inversion si on est sur la terrasse sans avoir fait le premier demi-tour
-  }
+    if (isOnTerrace.current && !hasPerformedFirstTurn.current) {
+      logger.log("Demi-tour sur la terrasse bloqué - effectuez d'abord un demi-tour au fond du chalet");
+      return; // Bloquer l'inversion si on est sur la terrasse sans avoir fait le premier demi-tour
+    }
+    
     // Inverser la direction
     movementDirection.current = -movementDirection.current;
     
@@ -271,11 +253,11 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
       }
       
       // Si ce demi-tour est effectué au fond du chalet, marquer qu'on a réalisé le premier demi-tour
-    const limits = cameraUtils.getCameraLimits();
-    if (!isOnTerrace.current && cameraRef.current.position.z <= limits.minZ + 500) {
-      hasPerformedFirstTurn.current = true;
-      logger.log("Premier demi-tour effectué au fond du chalet - demi-tour sur terrasse débloqué");
-    }
+      const limits = cameraUtils.getCameraLimits();
+      if (!isOnTerrace.current && cameraRef.current.position.z <= limits.minZ + 500) {
+        hasPerformedFirstTurn.current = true;
+        logger.log("Premier demi-tour effectué au fond du chalet - demi-tour sur terrasse débloqué");
+      }
     
       // Ajouter une brève "pause" dans le mouvement pour accentuer le demi-tour
       const currentPosition = { ...targetPosition.current };
@@ -293,10 +275,16 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
   
   /**
    * Gère le défilement de la souris pour avancer/reculer
-   * @param {WheelEvent} e - Événement de défilement
+   * @param {Object} e - Événement de défilement
    */
   const handleWheel = useCallback((e) => {
     if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
+    
+    // Extraire l'info d'appareil tactile si présente dans l'événement
+    const isTouchDevice = e.isTouchDevice === true;
+    
+    // Stocker temporairement cette information pour la boucle d'animation
+    window.__isTouchDevice = isTouchDevice;
     
     // Position actuelle
     const currentZ = cameraRef.current.position.z;
@@ -336,10 +324,14 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
       targetPosition.current.z = limits.maxZ;
       
       // Inverser la direction à la limite arrière seulement si on a déjà fait le premier demi-tour
-      // ou si on est sur la terrasse
+      // ou si on est sur un appareil tactile
       if (delta > 0) {
-        // Si on est sur la terrasse, ne rien faire si on n'a pas encore fait le premier demi-tour
-        if (!isOnTerrace.current || hasPerformedFirstTurn.current) {
+        // Sur appareil tactile, toujours autoriser le demi-tour
+        if (isTouchDevice) {
+          invertMovementDirection();
+        }
+        // Si on est sur la terrasse desktop, ne rien faire si on n'a pas encore fait le premier demi-tour
+        else if (!isOnTerrace.current || hasPerformedFirstTurn.current) {
           invertMovementDirection();
         } else {
           logger.log("Limite arrière atteinte sur la terrasse - effectuez d'abord un demi-tour au fond du chalet");
@@ -350,72 +342,77 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
       targetPosition.current.z = newZ;
     }
   }, [controlsEnabled, invertMovementDirection]);
+  
   /**
    * Gère le mouvement de la souris pour orienter la caméra
-   * @param {MouseEvent} e - Événement de mouvement de souris
+   * @param {Object} e - Événement de mouvement de souris
    */
   const handleMouseMove = useCallback((e) => {
     if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
     
-    // Détecter si l'événement vient d'un appareil tactile
-    const isTouchEvent = e.isTouchEvent === true || e.type === 'touchmove';
+    // Extraire l'info d'appareil tactile si présente dans l'événement
+    const isTouchDevice = e.isTouchDevice === true;
     
-    // Ignorer le mouvement de souris sur la terrasse SAUF pour les événements tactiles
-    // OU après avoir fait le premier demi-tour
-    if (isOnTerrace.current && !isTouchEvent && !hasPerformedFirstTurn.current) {
+    // Stocker temporairement cette information pour la boucle d'animation
+    window.__isTouchDevice = isTouchDevice;
+    
+    // RÈGLE 1: Sur mobile/tablette, toujours permettre la rotation
+    // RÈGLE 2: Sur desktop, bloquer la rotation sur la terrasse avant le premier demi-tour
+    if (!isTouchDevice && isOnTerrace.current && !hasPerformedFirstTurn.current) {
+      // Bloquer la rotation sur terrasse pour desktop avant premier demi-tour
       return;
     }
     
     // Normaliser la position de la souris entre -1 et 1
-  const x = e.normalizedX || (e.clientX / window.innerWidth) * 2 - 1;
-  const y = e.normalizedY || (e.clientY / window.innerHeight) * 2 - 1;
-  
-  // NOUVEAU: Appliquer une courbe de réponse plus douce pour les petits mouvements
-  // Utiliser une courbe cubique pour une réponse plus naturelle
-  const applyResponseCurve = (value, exponent = 3) => {
-    return Math.sign(value) * Math.pow(Math.abs(value), exponent);
-  };
+    const x = e.normalizedX || (e.clientX / window.innerWidth) * 2 - 1;
+    const y = e.normalizedY || (e.clientY / window.innerHeight) * 2 - 1;
+    
+    // Appliquer une courbe de réponse plus douce pour les petits mouvements
+    // Utiliser une courbe cubique pour une réponse plus naturelle
+    const applyResponseCurve = (value, exponent = 3) => {
+      return Math.sign(value) * Math.pow(Math.abs(value), exponent);
+    };
 
-  // Ajuster la sensibilité pour les événements tactiles
-  const sensitivityFactor = isTouchEvent ? 1.2 : 1.0;
-  
-  // Appliquer la courbe de réponse pour un mouvement plus précis au centre
-  const xModified = Math.sign(x) * Math.pow(Math.abs(x), 1.2);
-  const yModified = Math.sign(y) * Math.pow(Math.abs(y), 1.3);
-  
-  // Calcul de la distance du curseur par rapport au centre HORIZONTAL uniquement
-  const distanceFromCenterX = Math.abs(xModified);
-  
-  // Réduire l'offset de position pour un effet moins prononcé
-  const posOffsetX = xModified * config.maxPositionOffset * 1.2;
-  
-  // Réduire le mouvement vertical quand on s'éloigne du centre horizontal
-  const verticalFactor = Math.max(0, 1 - (distanceFromCenterX / config.centerWidthZone));
-  const posOffsetY = -yModified * config.maxPositionOffset * 0.4 * verticalFactor;
-  
-  // Appliquer ces offsets à la position cible
-  targetPosition.current.x = initialPosition.current.x + posOffsetX;
-  targetPosition.current.y = initialPosition.current.y + posOffsetY;
-  
-  // Base de rotation selon la direction du mouvement
-  const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
-  
-  // Calcul des rotations
-  // Rotation horizontale avec amplitude réduite et courbe de réponse
-  targetRotation.current.y = baseAngle + (-xModified * config.maxSideRotation);
-  
-  // Rotation verticale (X) - uniquement dans la zone centrale horizontale
-  if (movementDirection.current > 0) {
-    // Direction normale (avant)
-    targetRotation.current.x = -yModified * config.maxVerticalAngle * verticalFactor;
-  } else {
-    // Direction inversée (arrière)
-    targetRotation.current.x = yModified * config.maxVerticalAngle * verticalFactor;
-  }
-  
-  // Assurer que la rotation Z reste à 0
-  targetRotation.current.z = 0;
-}, [controlsEnabled]);
+    // Ajuster la sensibilité pour les événements tactiles
+    const sensitivityFactor = isTouchDevice ? 1.2 : 1.0;
+    
+    // Appliquer la courbe de réponse pour un mouvement plus précis au centre
+    const xModified = Math.sign(x) * Math.pow(Math.abs(x), 1.2);
+    const yModified = Math.sign(y) * Math.pow(Math.abs(y), 1.3);
+    
+    // Calcul de la distance du curseur par rapport au centre HORIZONTAL uniquement
+    const distanceFromCenterX = Math.abs(xModified);
+    
+    // Réduire l'offset de position pour un effet moins prononcé
+    const posOffsetX = xModified * config.maxPositionOffset * 1.2;
+    
+    // Réduire le mouvement vertical quand on s'éloigne du centre horizontal
+    const verticalFactor = Math.max(0, 1 - (distanceFromCenterX / config.centerWidthZone));
+    const posOffsetY = -yModified * config.maxPositionOffset * 0.4 * verticalFactor;
+    
+    // Appliquer ces offsets à la position cible
+    targetPosition.current.x = initialPosition.current.x + posOffsetX;
+    targetPosition.current.y = initialPosition.current.y + posOffsetY;
+    
+    // Base de rotation selon la direction du mouvement
+    const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
+    
+    // Calcul des rotations
+    // Rotation horizontale avec amplitude réduite et courbe de réponse
+    targetRotation.current.y = baseAngle + (-xModified * config.maxSideRotation);
+    
+    // Rotation verticale (X) - uniquement dans la zone centrale horizontale
+    if (movementDirection.current > 0) {
+      // Direction normale (avant)
+      targetRotation.current.x = -yModified * config.maxVerticalAngle * verticalFactor;
+    } else {
+      // Direction inversée (arrière)
+      targetRotation.current.x = yModified * config.maxVerticalAngle * verticalFactor;
+    }
+    
+    // Assurer que la rotation Z reste à 0
+    targetRotation.current.z = 0;
+  }, [controlsEnabled]);
   
   /**
    * Sauvegarde l'état actuel de la caméra
@@ -543,6 +540,9 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
   const moveCamera = useCallback((distance) => {
     if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
     
+    // Extraire l'info d'appareil tactile de la variable globale (si disponible)
+    const isTouchDevice = window.__isTouchDevice === true;
+    
     // Position actuelle
     const currentZ = cameraRef.current.position.z;
     
@@ -575,7 +575,16 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
       
       // Inverser la direction à la limite arrière
       if (finalDistance > 0) {
-        invertMovementDirection();
+        // Sur appareil tactile, toujours autoriser le demi-tour
+        if (isTouchDevice) {
+          invertMovementDirection();
+        }
+        // Si on est sur la terrasse desktop, ne rien faire si on n'a pas encore fait le premier demi-tour
+        else if (!isOnTerrace.current || hasPerformedFirstTurn.current) {
+          invertMovementDirection();
+        } else {
+          logger.log("Limite arrière atteinte sur la terrasse - effectuez d'abord un demi-tour au fond du chalet");
+        }
       }
     } else {
       // Déplacement normal dans les limites
@@ -668,6 +677,10 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
     return true;
   }, []);
   
+  /**
+   * Active ou désactive les contrôles de caméra
+   * @param {Boolean} enabled - État d'activation des contrôles
+   */
   const toggleControls = useCallback((enabled) => {
     // Activer ou désactiver les contrôles
     setControlsEnabled(enabled);
@@ -681,6 +694,9 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
     logger.log(`Contrôles de caméra ${enabled ? 'activés' : 'désactivés'} sans restauration d'état`);
   }, []);
 
+  /**
+   * Réactive uniquement les contrôles sans restaurer la position
+   */
   const restoreControlsOnly = useCallback(() => {
     // Réactiver les contrôles simplement
     logger.log("Réactivation simple des contrôles sans restauration de position");
@@ -699,11 +715,13 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
+      
+      // Nettoyer les variables globales
+      delete window.__isTouchDevice;
     };
-
-    
   }, []);
   
+  // API du hook
   return {
     initializeCamera,
     handleWheel,
@@ -716,6 +734,7 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
     restoreControlsOnly,
     isControlsEnabled: controlsEnabled,
     hasPreviousState: () => !!previousCameraState.current,
-    isOnTerrace: () => isOnTerrace.current
+    isOnTerrace: () => isOnTerrace.current,
+    hasPerformedFirstTurn: () => hasPerformedFirstTurn.current
   };
 }

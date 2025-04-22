@@ -1,39 +1,78 @@
 /**
  * Contrôles de navigation pour appareils mobiles
- * Version améliorée qui utilise le gestionnaire tactile centralisé
+ * Version refactorisée qui utilise le système d'interaction unifié
  */
 import React, { memo, useCallback, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import useTouchManager from '../../hooks/useTouchManager';
 
 /**
- * Composant de contrôles de navigation pour mobile avec gestion tactile améliorée
+ * Composant de contrôles de navigation pour mobile simplifié
  */
 const MobileControls = ({ onMoveForward, onMoveBackward }) => {
-  // Référence pour suivre l'état des boutons
+  // Référence pour les boutons
   const containerRef = useRef(null);
   
-  // Gestionnaire d'événements de bouton
-  const handleButtonPress = useCallback((direction) => {
-    if (direction === 'forward') {
-      onMoveForward();
-    } else if (direction === 'backward') {
-      onMoveBackward();
+  // Gestionnaires d'événements optimisés pour les mobiles
+  const handleButtonInteraction = useCallback((e) => {
+    // Bloquer la propagation pour éviter les conflits avec d'autres gestionnaires
+    e.stopPropagation();
+    
+    // Vérifier que c'est bien un bouton
+    const button = e.target.closest('.mobile-nav-button');
+    if (!button) return;
+    
+    // Déterminer le type d'événement
+    const isStart = e.type === 'touchstart' || e.type === 'mousedown';
+    const isEnd = e.type === 'touchend' || e.type === 'mouseup' || e.type === 'mouseleave';
+    
+    // Obtenir la direction du bouton
+    const direction = button.dataset.direction;
+    
+    if (isStart) {
+      // Ajouter l'effet visuel
+      button.classList.add('pressed');
+      
+      // Déclencher le mouvement
+      if (direction === 'forward') {
+        onMoveForward();
+      } else if (direction === 'backward') {
+        onMoveBackward();
+      }
+      
+      // Prévenir le comportement par défaut des événements tactiles
+      if (e.type === 'touchstart') {
+        e.preventDefault();
+      }
+    } else if (isEnd) {
+      // Retirer l'effet visuel
+      button.classList.remove('pressed');
     }
   }, [onMoveForward, onMoveBackward]);
   
-  // Utiliser le gestionnaire tactile centralisé
-  const { attachTouchHandlers } = useTouchManager({
-    onButtonPress: handleButtonPress
-  });
-  
-  // Attacher les gestionnaires tactiles au montage
+  // Attacher les gestionnaires au montage
   useEffect(() => {
-    if (containerRef.current) {
-      const cleanup = attachTouchHandlers(containerRef.current);
-      return cleanup;
-    }
-  }, [attachTouchHandlers]);
+    const container = containerRef.current;
+    if (!container) return;
+    
+    // Gestionnaires pour souris
+    container.addEventListener('mousedown', handleButtonInteraction);
+    container.addEventListener('mouseup', handleButtonInteraction);
+    container.addEventListener('mouseleave', handleButtonInteraction);
+    
+    // Gestionnaires pour tactile
+    container.addEventListener('touchstart', handleButtonInteraction, { passive: false });
+    container.addEventListener('touchend', handleButtonInteraction, { passive: false });
+    
+    // Nettoyage
+    return () => {
+      container.removeEventListener('mousedown', handleButtonInteraction);
+      container.removeEventListener('mouseup', handleButtonInteraction);
+      container.removeEventListener('mouseleave', handleButtonInteraction);
+      
+      container.removeEventListener('touchstart', handleButtonInteraction);
+      container.removeEventListener('touchend', handleButtonInteraction);
+    };
+  }, [handleButtonInteraction]);
   
   // Styles pour les contrôles
   const styles = {

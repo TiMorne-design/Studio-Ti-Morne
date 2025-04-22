@@ -1,97 +1,126 @@
 /**
  * Styles spécifiques pour les interactions tactiles
+ * Version refactorisée pour le système d'interaction unifié
  */
 
 /* Conteneur optimisé pour le tactile */
-.touch-enabled {
-    touch-action: manipulation; /* Optimisation tactile */
-    -webkit-tap-highlight-color: transparent; /* Supprimer le highlight sur iOS */
-  }
-  
-  /* Désactiver le défilement du body pendant les interactions tactiles */
-  body.touch-interacting {
-    overflow: hidden;
-    position: fixed;
-    width: 100%;
-    height: 100%;
-  }
-  
-  /* Masquer le halo de sélection sur iOS */
-  * {
-    -webkit-tap-highlight-color: rgba(0,0,0,0);
-  }
-  
-  /* Styles pour les boutons de navigation mobile */
-  .mobile-nav-button {
-    -webkit-touch-callout: none; /* Désactiver le menu contextuel */
-    -webkit-user-select: none; /* Empêcher la sélection */
-    user-select: none;
-    position: relative;
-  }
-  
-  /* Animation pour le bouton pressé */
-  .mobile-nav-button.pressed {
-    transform: scale(1.1);
-    background-color: rgba(255, 255, 255, 0.9);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-  }
-  
-  /* Optimisations pour éviter les déclenchements accidentels */
-  .overlay-container * {
-    touch-action: auto; /* Restaurer le comportement tactile par défaut */
-    pointer-events: auto; /* S'assurer que les événements sont captés */
-  }
-  
-  /* Désactiver les interactions pendant les animations de transition */
-  .transition-active {
-    pointer-events: none;
-  }
-  
-  /* Renforcer l'isolation des overlays pour éviter les interférences */
-  .overlay-container {
-    isolation: isolate;
-    touch-action: auto;
-  }
-  
-  /* Éléments interactifs dans la scène Spline */
-  .spline-object,
-  [data-interactive="true"] {
-    cursor: pointer;
-  }
-  
-  /* Zone de sécurité autour des boutons pour éviter les déclenchements accidentels */
-  .mobile-nav-button::before {
-    content: '';
-    position: absolute;
-    top: -10px;
-    left: -10px;
-    right: -10px;
-    bottom: -10px;
-    z-index: -1;
-  }
-  
-  /* Style actif pour les contrôles tactiles pendant le swipe */
-  .touch-swipe-active .mobile-controls {
-    opacity: 0.5; /* Réduire l'opacité pendant les swipes */
-    pointer-events: none; /* Désactiver les interactions pendant les swipes */
-    transition: opacity 0.3s;
-  }
-  
-  /* Retour visuel tactile pour les objets */
-  @keyframes touchPulse {
-    0% { transform: scale(1); opacity: 0.7; }
-    50% { transform: scale(1.2); opacity: 0.4; }
-    100% { transform: scale(1); opacity: 0; }
-  }
-  
+.touch-enabled,
+.interaction-enabled {
+  touch-action: manipulation; /* Optimisation tactile */
+  -webkit-tap-highlight-color: transparent; /* Supprimer le highlight sur iOS */
+}
+
+/* Désactiver le défilement du body pendant les interactions tactiles */
+body.touch-interacting {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+/* Masquer le halo de sélection sur iOS */
+* {
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+}
+
+/* Styles pour les boutons de navigation mobile */
+.mobile-nav-button {
+  -webkit-touch-callout: none; /* Désactiver le menu contextuel */
+  -webkit-user-select: none; /* Empêcher la sélection */
+  user-select: none;
+  position: relative;
+}
+
+/* Animation pour le bouton pressé */
+.mobile-nav-button.pressed {
+  transform: scale(1.1);
+  background-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* Optimisations pour éviter les déclenchements accidentels */
+.overlay-container * {
+  touch-action: auto; /* Restaurer le comportement tactile par défaut */
+  pointer-events: auto; /* S'assurer que les événements sont captés */
+}
+
+/* Désactiver les interactions pendant les animations de transition */
+.transition-active {
+  pointer-events: none;
+}
+
+/* Renforcer l'isolation des overlays pour éviter les interférences */
+.overlay-container {
+  isolation: isolate;
+  touch-action: auto;
+}
+
+/* Éléments interactifs dans la scène Spline */
+.spline-object,
+[data-interactive="true"] {
+  cursor: pointer;
+}
+
+/* Zone de sécurité autour des boutons pour éviter les déclenchements accidentels */
+.mobile-nav-button::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  right: -10px;
+  bottom: -10px;
+  z-index: -1;
+}
+
+/* Style actif pour les contrôles tactiles pendant le swipe */
+.interaction-active .mobile-controls {
+  opacity: 0.5; /* Réduire l'opacité pendant les interactions */
+  pointer-events: none; /* Désactiver les interactions pendant les mouvements */
+  transition: opacity 0.3s;
+}
+
+/* Retour visuel tactile pour les objets */
+@keyframes touchPulse {
+  0% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.2); opacity: 0.4; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+.touch-feedback {
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background-color: rgba(42, 157, 143, 0.4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 9999;
+  animation: touchPulse 0.6s ease-out forwards;
+}
+
+/* Désactiver les interactions explicitement */
+.interaction-disabled {
+  pointer-events: none !important;
+}
+
+/* Style pendant l'inertie tactile */
+.inertia-active .spline-scene {
+  cursor: grabbing; /* Montrer que l'inertie est active */
+}
+
+/* Optimisations pour les appareils à faible performance */
+@media (prefers-reduced-motion: reduce) {
+  /* Réduire les animations pour économiser de la performance */
   .touch-feedback {
-    position: absolute;
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    background-color: rgba(42, 157, 143, 0.4);
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-    z-index: 9999;
-    animation: touchPulse 0.6s ease-out forwards;
+    animation-duration: 0.3s;
   }
+  
+  .mobile-nav-button.pressed {
+    transition-duration: 0.1s;
+  }
+  
+  /* Désactiver certaines animations non-essentielles */
+  .transition-active {
+    transition-duration: 0.2s !important;
+  }
+}
