@@ -2,11 +2,12 @@
  * Composant SplineScene
  * Gère le rendu et les interactions avec la scène Spline
  */
-import React, { useRef, useImperativeHandle, forwardRef, useEffect } from 'react';
+import React, { useRef, useImperativeHandle, forwardRef, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import Spline from '@splinetool/react-spline';
 import useCameraControls from './useCameraControls';
 import useAnimation from '../../hooks/useAnimation';
+import useTouchManager from '../../hooks/useTouchManager';
 import cameraUtils from '../../utils/cameraUtils';
 import splineHelpers from '../../utils/splineHelpers';
 import debugUtils from '../../utils/debugUtils';
@@ -21,6 +22,7 @@ const { logger } = debugUtils;
 const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad, qualityLevel }, ref) => {
   const splineRef = useRef(null);
   const cameraRef = useRef(null);
+  const containerRef = useRef(null);
   const lastClickedButtonRef = useRef(null);
   
   // Utiliser les hooks personnalisés
@@ -39,6 +41,92 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
   } = useCameraControls(cameraRef, splineRef);
   
   const { animateCamera } = useAnimation();
+
+  /**
+   * Gère les mouvements de souris standard sans filtrage
+   */
+  const handleStandardMouseMove = useCallback((e) => {
+    if (!isControlsEnabled || !cameraRef.current) return;
+    
+    // Pour les événements de souris standard, pas de filtrage
+    handleMouseMove(e);
+  }, [handleMouseMove, isControlsEnabled]);
+
+  /**
+   * Gère spécifiquement les événements tactiles avec lissage
+   */
+  const handleTouchSwipe = useCallback((swipeEvent) => {
+    if (!isControlsEnabled || !cameraRef.current) return;
+    
+    // Référence pour les valeurs précédentes
+    if (!handleTouchSwipe.prevX) {
+      handleTouchSwipe.prevX = swipeEvent.normalizedX || 0;
+      handleTouchSwipe.prevY = swipeEvent.normalizedY || 0;
+    }
+    
+    // Lissage pour les événements tactiles
+    const smoothingFactor = 0.35;
+    
+    // Calculer les valeurs lissées
+    const smoothedX = handleTouchSwipe.prevX * (1 - smoothingFactor) + 
+                      (swipeEvent.normalizedX || 0) * smoothingFactor;
+    const smoothedY = handleTouchSwipe.prevY * (1 - smoothingFactor) + 
+                      (swipeEvent.normalizedY || 0) * smoothingFactor;
+    
+    // Mettre à jour les valeurs précédentes
+    handleTouchSwipe.prevX = smoothedX;
+    handleTouchSwipe.prevY = smoothedY;
+    
+    // Créer un nouvel événement avec les valeurs lissées
+    const filteredEvent = {
+      ...swipeEvent,
+      normalizedX: smoothedX,
+      normalizedY: smoothedY,
+      clientX: window.innerWidth * (smoothedX + 1) / 2,
+      clientY: window.innerHeight * (smoothedY + 1) / 2
+    };
+    
+    // Transmettre l'événement filtré
+    handleMouseMove(filteredEvent);
+  }, [handleMouseMove, isControlsEnabled]);
+  
+  /**
+   * Gère les interactions tactiles avec les objets
+   */
+  const handleObjectInteraction = useCallback((interaction) => {
+    if (!splineRef.current || !onObjectClick) return;
+    
+    if (interaction.type === 'tap') {
+      // Récupérer l'information de l'objet depuis Spline
+      const target = interaction.target;
+      const splineObj = splineRef.current;
+      
+      // Simuler un événement mouseUp pour déclencher l'interaction
+      if (target.dataset && target.dataset.objectName) {
+        const objectName = target.dataset.objectName;
+        const objectId = target.dataset.objectId || getObjectId(objectName);
+        
+        logger.log('Interaction tactile avec objet:', objectName, objectId);
+        
+        // Appeler onObjectClick comme si c'était un clic direct
+        onObjectClick(objectName, splineObj, objectId);
+      }
+    }
+  }, [onObjectClick]);
+  
+  // Utiliser le gestionnaire tactile centralisé
+  const { attachTouchHandlers, stopInertia } = useTouchManager({
+    onSwipe: handleTouchSwipe,
+    onObjectInteraction: handleObjectInteraction
+  });
+
+  // Attacher les gestionnaires tactiles
+  useEffect(() => {
+    if (containerRef.current) {
+      const cleanup = attachTouchHandlers(containerRef.current);
+      return cleanup;
+    }
+  }, [attachTouchHandlers]);
   
   /**
    * Anime la caméra vers une position et rotation cibles
@@ -80,73 +168,20 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
     
     // Gestion des contrôles de caméra
     handleButtonClick,
-    handleWheel, 
-    handleMouseMove: (e) => {const filterMouseEvent = (event) => {
-      // Référence statique pour stocker les valeurs précédentes
-      if (!filterMouseEvent.prevX) {
-        filterMouseEvent.prevX = event.normalizedX || 0;
-        filterMouseEvent.prevY = event.normalizedY || 0;
-      }
-
-      const isTouchEvent = event.isTouchEvent === true;
-  
-      // Pour les événements tactiles, appliquer un filtrage supplémentaire
-      if (isTouchEvent) {
-        filteredEvent.deltaX = touch.clientX - state.lastX;
-        filteredEvent.deltaY = touch.clientY - state.lastY;
-        
-        // Normaliser sur l'axe -1 à 1
-        filteredEvent.normalizedX = (filteredEvent.clientX / window.innerWidth) * 2 - 1;
-        filteredEvent.normalizedY = (filteredEvent.clientY / window.innerHeight) * 2 - 1;
-      
-        const smoothingFactor = 0.35; // Plus petit = plus de lissage
-        
-        // Si les valeurs normalisées sont définies, les utiliser directement
-        if (event.normalizedX !== undefined) {
-          // Appliquer un lissage entre l'ancienne et la nouvelle valeur
-          const smoothedX = filterMouseEvent.prevX * (1 - smoothingFactor) + 
-                             event.normalizedX * smoothingFactor;
-          const smoothedY = filterMouseEvent.prevY * (1 - smoothingFactor) + 
-                             (event.normalizedY || 0) * smoothingFactor;
-          
-          // Mettre à jour les valeurs précédentes
-          filterMouseEvent.prevX = smoothedX;
-          filterMouseEvent.prevY = smoothedY;
-          
-          // Créer un nouvel événement avec les valeurs lissées
-          return {
-            ...event,
-            normalizedX: smoothedX,
-            normalizedY: smoothedY,
-            // Mettre à jour les coordonnées clientX/Y pour cohérence
-            clientX: window.innerWidth * (smoothedX + 1) / 2,
-            clientY: window.innerHeight * (smoothedY + 1) / 2
-          };
-        }
-      }
-
-      // S'assurer que le flag isTouchEvent est transmis pour tous les événements tactiles
-    if (isTouchEvent && !event.normalizedX) {
-      return {
-        ...event,
-        isTouchEvent: true
-      };
-    }
-      
-      // Pour les événements de souris (non tactiles), pas de filtrage supplémentaire
-      return event;
-    };
+    handleWheel,
     
-    // Filtrer l'événement avant de le transmettre
-    const filteredEvent = filterMouseEvent(e);
-    handleMouseMove(filteredEvent);
-  },
-  
+    // Exposer les deux gestionnaires séparés pour souris et tactile
+    handleMouseMove: handleStandardMouseMove,
+    handleTouchSwipe: handleTouchSwipe,
+    
     restorePreviousCameraState,
     hasPreviousState,
     
     // Animation de caméra
     animateCamera: handleAnimateCamera,
+
+    // Arrêter l'inertie tactile
+    stopInertia,
 
     // Nouvelle fonction spécifique pour la vue portfolio
     moveToPortfolioView: (portfolioParams) => {
@@ -157,19 +192,19 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
       
       logger.log("Déplacement direct vers la vue portfolio", portfolioParams);
       
-        // Convertir les rotations de degrés (format Spline) en radians (format Three.js/React)
-  const convertedRotation = {
-    x: portfolioParams.rotation.x * Math.PI / 180,
-    y: portfolioParams.rotation.y * Math.PI / 180,
-    z: portfolioParams.rotation.z * Math.PI / 180
-  };
-  
-  // Utiliser directCameraMovement avec rotation convertie
-  return directCameraMovement(
-    portfolioParams.position,
-    convertedRotation
-  );
-},
+      // Convertir les rotations de degrés (format Spline) en radians (format Three.js/React)
+      const convertedRotation = {
+        x: portfolioParams.rotation.x * Math.PI / 180,
+        y: portfolioParams.rotation.y * Math.PI / 180,
+        z: portfolioParams.rotation.z * Math.PI / 180
+      };
+    
+      // Utiliser directCameraMovement avec rotation convertie
+      return directCameraMovement(
+        portfolioParams.position,
+        convertedRotation
+      );
+    },
     
     // Exposer moveCamera pour permettre le déplacement direct
     moveCamera: (distance) => {
@@ -381,13 +416,15 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
   
   return (
     <div
+      ref={containerRef}
       style={{
         width: '100vw',
         height: '100vh',
         position: 'relative'
       }}
       onWheel={handleWheel}
-      onMouseMove={handleMouseMove}
+      onMouseMove={handleStandardMouseMove} // Important: utiliser la version non filtrée pour la souris
+      className="touch-enabled"
     >
       <Spline
         scene={scenePath}
