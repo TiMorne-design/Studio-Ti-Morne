@@ -1,30 +1,20 @@
 /**
- * TouchControls.js
- * Gestion complète des contrôles tactiles pour l'expérience 3D
- * Combine les fonctionnalités de rotation, déplacement et inertie
+ * Version améliorée de useTouchControls.js
+ * Résout les problèmes avec les petits swipes rapides
  */
-import { useRef, useState, useCallback, useEffect } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
+import debugUtils from '../utils/debugUtils';
+
+const { logger } = debugUtils;
 
 /**
- * Hook personnalisé pour la gestion des contrôles tactiles
- * @param {Object} options - Options de configuration
- * @param {Function} options.onCameraRotate - Callback pour la rotation de la caméra
- * @param {Function} options.onCameraMove - Callback pour le déplacement de la caméra
- * @param {Object} options.splineRef - Référence à l'instance Spline
- * @param {Number} options.sensitivity - Sensibilité des mouvements (défaut: 1.5)
- * @param {Object} options.limits - Limites de mouvement de la caméra
- * @returns {Object} - API des contrôles tactiles
+ * Hook personnalisé pour gérer uniquement les interactions tactiles de type swipe
  */
-export default function TouchControls({
-  onCameraRotate = null,
-  onCameraMove = null,
-  splineRef = null,
-  sensitivity = 1.5,
-  limits = null
+export default function useTouchControls({ 
+  onMouseMove = null,
+  sensitivity = 1.5, // Sensibilité augmentée pour les swipes
+  threshold = 3 // Seuil réduit pour détecter les swipes plus facilement
 }) {
-  // État pour les contrôles
-  const [isEnabled, setIsEnabled] = useState(true);
-  
   // État pour suivre les interactions tactiles
   const touchStateRef = useRef({
     startX: 0,
@@ -33,13 +23,13 @@ export default function TouchControls({
     lastY: 0,
     timestamp: 0,
     moving: false,
-    moveType: null,
-    totalX: 0,
-    totalY: 0,
-    velocityX: 0,
-    velocityY: 0,
-    lastTime: 0,
-    touchStartTime: 0
+    moveType: null
+  });
+  
+  // État pour suivre la position de la caméra (valeur cumulée)
+  const cameraPosRef = useRef({
+    x: 0,
+    y: 0
   });
   
   // Référence pour l'inertie
@@ -49,156 +39,44 @@ export default function TouchControls({
     initialVelocity: 0
   });
   
-  // Animation d'inertie active
-  const inertiaAnimationRef = useRef(null);
+  // Référence pour les animations d'inertie
+  const inertiaIntervalRef = useRef(null);
   
-  // Configuration des contrôles tactiles
+  // Paramètres pour le comportement du swipe - AJUSTÉS
   const swipeOptions = {
-    // Paramètres de l'inertie
-    damping: 0.94,                // Amortissement du mouvement
-    minSpeed: 0.1,                // Vitesse minimum pour continuer l'inertie
-    maxVelocity: 3.0,             // Vitesse maximum de l'inertie
-    inertiaDuration: 600,         // Durée minimum de l'inertie en ms
-    
-    // Paramètres de détection des swipes
-    swipeThreshold: 0.8,          // Seuil pour considérer un mouvement comme un swipe
-    swipeMultiplier: 1.2,         // Multiplicateur d'effet du swipe
-    swipeDurationThreshold: 300,  // Durée maximum d'un swipe en ms
-    minSwipeDistance: 5,          // Distance minimum d'un swipe en pixels
-    shortSwipeBoost: 1.3,         // Boost pour les swipes courts
-    
-    // Autres paramètres
-    panThreshold: 3,              // Seuil pour détecter un mouvement de pan
-    invertDirection: false,       // Inverser la direction du mouvement
-    minSwipeVelocity: 0.2,        // Vitesse minimale pour un swipe valide
-    doubleTapThreshold: 300,      // Délai maximum entre deux taps pour double-tap
-    doubleTapDistance: 20         // Distance max entre deux taps pour double-tap
+    damping: 0.94, // Amortissement équilibré (0.96 -> 0.94)
+    minSpeed: 0.1, // Seuil légèrement augmenté pour réduire la durée d'inertie (0.05 -> 0.1)
+    swipeThreshold: 0.8, // Maintenu
+    swipeMultiplier: 1.2, // Effet réduit considérablement (2.5 -> 1.2)
+    shortSwipeBoost: 1.3, // Boost réduit pour swipes courts (1.8 -> 1.3)
+    swipeDurationThreshold: 300, // Maintenu
+    minSwipeDistance: 5, // Maintenu
+    maxVelocity: 3.0, // Vélocité maximale réduite (5.0 -> 3.0)
+    inertiaDuration: 600, // Durée minimale réduite (1000 -> 600)
+    invertDirection: true, // NOUVEAU: Inverser la direction pour correspondre aux attentes
   };
   
   /**
-   * Arrête toute inertie en cours
+   * Arrête l'inertie en cours
    */
   const stopInertia = useCallback(() => {
-    if (inertiaAnimationRef.current) {
-      cancelAnimationFrame(inertiaAnimationRef.current);
-      inertiaAnimationRef.current = null;
+    if (inertiaIntervalRef.current) {
+      cancelAnimationFrame(inertiaIntervalRef.current);
+      inertiaIntervalRef.current = null;
     }
     inertiaRef.current.active = false;
+    
+    logger.log("Inertie arrêtée");
   }, []);
   
   /**
-   * Applique une inertie après un swipe
-   * @param {Number} velocity - Vitesse initiale
-   * @param {Number} direction - Direction du swipe (-1 ou 1)
-   * @param {Number} touchDuration - Durée du toucher en ms
-   * @param {Number} distance - Distance du swipe en pixels
-   */
-  const applyInertia = useCallback((velocity, direction, touchDuration, distance) => {
-    if (!onCameraRotate) return;
-    
-    // Arrêter toute inertie précédente
-    stopInertia();
-    
-    // Appliquer l'inversion de direction si nécessaire
-    const effectiveDirection = swipeOptions.invertDirection ? -direction : direction;
-    
-    // Configurer l'inertie
-    inertiaRef.current.direction = effectiveDirection;
-    inertiaRef.current.initialVelocity = velocity;
-    
-    // Boost pour les swipes courts mais rapides
-    const isShortSwipe = touchDuration < 150 && distance < 50;
-    const isVeryShortSwipe = touchDuration < 80 && distance < 30;
-    
-    // Calculer la vélocité initiale
-    let currentVelocity = velocity * swipeOptions.swipeMultiplier;
-    
-    // Appliquer des boosts si nécessaire
-    if (isVeryShortSwipe) {
-      currentVelocity *= swipeOptions.shortSwipeBoost * 1.2;
-    } else if (isShortSwipe) {
-      currentVelocity *= swipeOptions.shortSwipeBoost;
-    }
-    
-    // Appliquer la direction et limiter la vélocité
-    currentVelocity = Math.abs(currentVelocity) * effectiveDirection;
-    currentVelocity = Math.sign(currentVelocity) * 
-                      Math.min(Math.abs(currentVelocity), swipeOptions.maxVelocity);
-    
-    // Activer l'inertie
-    inertiaRef.current.active = true;
-    
-    // Position cumulée pour l'animation
-    let cumulativeX = 0;
-    
-    // Temps de début pour garantir une durée minimale
-    const startTime = Date.now();
-    
-    // Fonction d'animation de l'inertie
-    const inertiaStep = () => {
-      if (!inertiaRef.current.active || !onCameraRotate) {
-        stopInertia();
-        return;
-      }
-      
-      // Temps écoulé depuis le début
-      const elapsedTime = Date.now() - startTime;
-      
-      // Amortissement progressif
-      const currentDamping = elapsedTime < swipeOptions.inertiaDuration / 4
-          ? Math.max(0.95, swipeOptions.damping)
-          : swipeOptions.damping;
-      
-      // Appliquer l'amortissement
-      currentVelocity *= currentDamping;
-      
-      // Vérifier si on continue l'inertie
-      const shouldContinue = elapsedTime < swipeOptions.inertiaDuration / 2 ||
-                            Math.abs(currentVelocity) >= swipeOptions.minSpeed;
-      
-      if (!shouldContinue) {
-        stopInertia();
-        return;
-      }
-      
-      // Calculer le déplacement pour cette frame
-      cumulativeX += currentVelocity;
-      
-      // Limiter la rotation maximale
-      const maxRotation = window.innerWidth * 0.5;
-      cumulativeX = Math.max(-maxRotation, Math.min(maxRotation, cumulativeX));
-      
-      // Normaliser pour la rotation de caméra (-1 à 1)
-      const normalizedX = cumulativeX / maxRotation;
-      
-      // Créer un événement simulé
-      const simulatedEvent = {
-        clientX: window.innerWidth * (0.5 + normalizedX * 0.5),
-        clientY: window.innerHeight / 2,
-        normalizedX: normalizedX,
-        normalizedY: 0,
-        isTouchEvent: true,
-        type: 'touchmove'
-      };
-      
-      // Envoyer au contrôle de caméra
-      onCameraRotate(simulatedEvent);
-      
-      // Continuer l'animation
-      inertiaAnimationRef.current = requestAnimationFrame(inertiaStep);
-    };
-    
-    // Démarrer l'animation
-    inertiaAnimationRef.current = requestAnimationFrame(inertiaStep);
-  }, [onCameraRotate, stopInertia, swipeOptions]);
-  
-  /**
-   * Gère le début d'un toucher
+   * Gestionnaire pour le début du toucher
    */
   const handleTouchStart = useCallback((e) => {
-    if (!isEnabled || e.touches.length !== 1) return;
+    // Un seul toucher à la fois
+    if (e.touches.length !== 1) return;
     
-    // Arrêter toute inertie en cours
+    // Arrêter l'inertie existante
     stopInertia();
     
     const touch = e.touches[0];
@@ -212,32 +90,38 @@ export default function TouchControls({
       timestamp: Date.now(),
       moving: false,
       moveType: null,
-      totalX: 0,
+      totalX: 0, // Suivre le déplacement total
       totalY: 0,
-      velocityX: 0,
-      velocityY: 0,
-      lastTime: Date.now(),
-      touchStartTime: Date.now()
+      velocityX: 0, // Stocker la vélocité directement
+      lastTime: Date.now(), // Temps du dernier mouvement
+      touchStartTime: Date.now() // NOUVEAU: Pour calculer la durée totale du toucher
     };
-  }, [isEnabled, stopInertia]);
+    
+    logger.log("Touch start détecté", touch.clientX, touch.clientY);
+  }, [stopInertia]);
   
   /**
-   * Gère le déplacement d'un toucher
+   * Gestionnaire pour le mouvement du toucher
+   * Collecte uniquement les données pour le swipe sans déplacer la caméra
    */
   const handleTouchMove = useCallback((e) => {
-    if (!isEnabled || !touchStateRef.current || e.touches.length !== 1) return;
-    
-    // Vérifier si on est dans un overlay (scrollable)
+    // Vérifications de base
+    if (!touchStateRef.current || e.touches.length !== 1) return;
+
+    // Si le mouvement est dans un overlay, l'ignorer mais ne pas l'arrêter
     const isInOverlay = e.target.closest('.overlay-content') || 
                         e.target.closest('[class*="overlay-container"]');
-    
-    if (isInOverlay) return;
+
+    if (isInOverlay) {
+      logger.log("Touch dans un overlay, ignoré");
+      return;
+    }
     
     const touch = e.touches[0];
     const now = Date.now();
     const state = touchStateRef.current;
     
-    // Calculer les deltas
+    // Calculer les deltas depuis le dernier mouvement
     const deltaX = touch.clientX - state.lastX;
     const deltaY = touch.clientY - state.lastY;
     
@@ -245,30 +129,30 @@ export default function TouchControls({
     state.totalX += deltaX;
     state.totalY += deltaY;
     
-    // Calculer la vélocité
+    // Calculer la vélocité (pixels par milliseconde)
     const timeDelta = now - state.lastTime;
     if (timeDelta > 0) {
+      // Mise à jour progressive de la vélocité avec lissage
       const newVelocityX = deltaX / timeDelta;
-      const newVelocityY = deltaY / timeDelta;
-      
-      // Lissage de la vélocité
-      const weightNew = Math.min(0.5, timeDelta / 50);
+      // AMÉLIORÉ: Pondération plus forte sur la nouvelle vélocité pour les mouvements rapides
+      const weightNew = Math.min(0.5, timeDelta / 50); // 0.3 -> dynamique jusqu'à 0.5
       state.velocityX = state.velocityX * (1 - weightNew) + newVelocityX * weightNew;
-      state.velocityY = state.velocityY * (1 - weightNew) + newVelocityY * weightNew;
     }
     
-    // Déterminer le type de mouvement si pas encore fait
+    // Déterminer le type de mouvement au besoin
     if (!state.moveType) {
       const distX = Math.abs(touch.clientX - state.startX);
       const distY = Math.abs(touch.clientY - state.startY);
       
-      if (distX > swipeOptions.panThreshold || distY > swipeOptions.panThreshold) {
+      if (distX > threshold || distY > threshold) {
         // Si le mouvement horizontal est dominant
         if (distX > distY) {
           state.moveType = 'horizontal';
           state.moving = true;
+          logger.log("Mouvement horizontal détecté", distX, distY);
         } else {
           state.moveType = 'vertical';
+          logger.log("Mouvement vertical détecté", distX, distY);
         }
       }
     }
@@ -278,94 +162,231 @@ export default function TouchControls({
     state.lastY = touch.clientY;
     state.lastTime = now;
     
-    // Envoyer les événements pour la rotation (mouvements horizontaux uniquement)
-    if (onCameraRotate && (state.moveType === 'horizontal' || !state.moveType)) {
-      // Normaliser la position (-1 à 1)
-      const normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
+    // IMPORTANT: Envoyer les événements de mouvement pour la rotation en temps réel
+    // mais uniquement si c'est un mouvement horizontal
+    if (onMouseMove && (state.moveType === 'horizontal' || !state.moveType)) {
+      // Convertir en coordonnées normalisées (-1 à 1)
+      let normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
       
-      // Créer un événement simulé
+      // IMPORTANT: Inverser la direction en temps réel aussi pour correspondre à l'inertie
+      if (swipeOptions.invertDirection) {
+        normalizedX = -normalizedX;
+      }
+      
+      // Créer un événement simulé avec le flag tactile
       const simulatedEvent = {
-        clientX: touch.clientX,
+        clientX: window.innerWidth * (0.5 - normalizedX * 0.5), // Ajusté pour l'inversion
         clientY: touch.clientY,
         normalizedX: normalizedX,
-        normalizedY: 0,
+        normalizedY: 0, // On maintient vertical à 0 pour mieux contrôler
         isTouchEvent: true,
         type: 'touchmove'
       };
       
-      // Envoyer l'événement
-      onCameraRotate(simulatedEvent);
+      // Envoyer l'événement directement
+      onMouseMove(simulatedEvent);
       
-      // Bloquer la propagation pour les mouvements horizontaux
+      // Bloquer la propagation mais seulement si c'est un mouvement horizontal confirmé
       if (Math.abs(state.totalX) > swipeOptions.minSwipeDistance) {
         e.preventDefault();
         e.stopPropagation();
       }
     }
-    
-    // Pour les mouvements verticaux, déclencher le déplacement
-    if (onCameraMove && state.moveType === 'vertical') {
-      // Déplacement vers l'avant/arrière
-      const movementAmount = -deltaY * 4 * sensitivity; // Multiplier pour effet plus prononcé
-      
-      // Vérifier les limites si elles existent
-      if (limits && splineRef?.current?.camera) {
-        const camera = splineRef.current.camera;
-        const currentZ = camera.position.z;
-        
-        // Appliquer les limites
-        if ((currentZ <= limits.minZ && movementAmount < 0) || 
-            (currentZ >= limits.maxZ && movementAmount > 0)) {
-          return; // Ne pas autoriser le mouvement hors limites
-        }
-      }
-      
-      // Envoyer l'événement de mouvement
-      onCameraMove(movementAmount);
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  }, [isEnabled, onCameraRotate, onCameraMove, sensitivity, limits, swipeOptions]);
+  }, [onMouseMove, threshold, swipeOptions.minSwipeDistance, swipeOptions.invertDirection]);
   
   /**
-   * Gère la fin d'un toucher
+   * Applique l'inertie après un swipe - AJUSTÉE avec direction inversée
+   */
+  const applyInertia = useCallback((velocity, direction, touchDuration, distance) => {
+    if (!onMouseMove) return;
+    
+    // Arrêter toute inertie existante
+    stopInertia();
+    
+    // IMPORTANT: Inverser la direction si l'option est activée
+    if (swipeOptions.invertDirection) {
+      direction = -direction; // Inverser la direction (gauche→droite et droite→gauche)
+    }
+    
+    // Stocker les informations d'inertie
+    inertiaRef.current.direction = direction;
+    inertiaRef.current.initialVelocity = velocity;
+    
+    // Boost pour les swipes courts mais rapides (avec valeurs réduites)
+    const isShortSwipe = touchDuration < 150 && distance < 50;
+    const isVeryShortSwipe = touchDuration < 80 && distance < 30;
+    
+    // Vélocité initiale (pixels par frame à 60fps) - réduite
+    let currentVelocity = velocity * swipeOptions.swipeMultiplier;
+    
+    // Appliquer un boost modéré pour les swipes courts mais rapides
+    if (isVeryShortSwipe) {
+      currentVelocity *= swipeOptions.shortSwipeBoost * 1.2; // Réduit (1.5 -> 1.2)
+      logger.log("Boost modéré appliqué pour swipe très court", currentVelocity);
+    } else if (isShortSwipe) {
+      currentVelocity *= swipeOptions.shortSwipeBoost;
+      logger.log("Boost appliqué pour swipe court", currentVelocity);
+    }
+    
+    // S'assurer qu'elle est dans la bonne direction (maintenant inversée si option activée)
+    currentVelocity = Math.abs(currentVelocity) * direction;
+    
+    // Limiter la vélocité maximale (réduite)
+    const maxVelocity = swipeOptions.maxVelocity;
+    currentVelocity = Math.sign(currentVelocity) * Math.min(Math.abs(currentVelocity), maxVelocity);
+    
+    // Activation de l'inertie
+    inertiaRef.current.active = true;
+    
+    // Position cumulée pour l'animation
+    let cumulativeX = 0;
+    
+    // Pour garantir une durée minimale d'inertie
+    const startTime = Date.now();
+    const guaranteedDuration = swipeOptions.inertiaDuration;
+    
+    // Fonction d'animation d'inertie - AJUSTÉE
+    const inertiaStep = () => {
+      if (!inertiaRef.current.active || !onMouseMove) {
+        stopInertia();
+        return;
+      }
+      
+      // Temps écoulé depuis le début de l'inertie
+      const elapsedTime = Date.now() - startTime;
+      
+      // Amortissement plus régulier et progressif
+      const currentDamping = elapsedTime < guaranteedDuration / 4
+          ? Math.max(0.95, swipeOptions.damping) // Légèrement plus lent au début
+          : swipeOptions.damping;
+      
+      // Appliquer l'amortissement
+      currentVelocity *= currentDamping;
+      
+      // Garantir que l'inertie respecte la durée minimale mais s'arrête plus vite si trop lente
+      const shouldContinue = elapsedTime < guaranteedDuration / 2 || // Demi-durée garantie seulement
+                            Math.abs(currentVelocity) >= swipeOptions.minSpeed;
+      
+      if (!shouldContinue) {
+        logger.log("Inertie terminée après", elapsedTime, "ms");
+        stopInertia();
+        return;
+      }
+      
+      // Calculer le déplacement pour cette frame
+      cumulativeX += currentVelocity;
+      
+      // Limiter la rotation maximale (en proportion de l'écran)
+      const maxRotation = window.innerWidth * 0.5;
+      cumulativeX = Math.max(-maxRotation, Math.min(maxRotation, cumulativeX));
+      
+      // Convertir en valeur normalisée pour la rotation de la caméra (-1 à 1)
+      const normalizedX = cumulativeX / maxRotation;
+      
+      // Créer un événement simulé avec le flag tactile explicite
+      const simulatedEvent = {
+        clientX: window.innerWidth * (0.5 + normalizedX * 0.5), // entre 0 et window.innerWidth
+        clientY: window.innerHeight / 2,
+        normalizedX: normalizedX,
+        normalizedY: 0,
+        isTouchEvent: true, // Crucial pour être traité correctement
+        type: 'touchmove'   // Ajouter le type d'événement
+      };
+      
+      // Log pour débogage occasionnel
+      if (Math.abs(currentVelocity) > 0.5 && Math.random() < 0.05) {
+        logger.log("Inertie active - vélocité:", currentVelocity.toFixed(2), 
+                   "position:", normalizedX.toFixed(2), 
+                   "temps écoulé:", elapsedTime);
+      }
+      
+      // Envoyer l'événement aux contrôles de caméra
+      onMouseMove(simulatedEvent);
+      
+      // Programmer la prochaine étape
+      inertiaIntervalRef.current = requestAnimationFrame(inertiaStep);
+    };
+    
+    // Démarrer l'animation
+    inertiaIntervalRef.current = requestAnimationFrame(inertiaStep);
+    
+    // Pour le débogage
+    return () => stopInertia();
+  }, [onMouseMove, stopInertia]);
+  
+  /**
+   * Gestionnaire pour la fin du toucher - AMÉLIORÉ pour mieux détecter les swipes courts
    */
   const handleTouchEnd = useCallback((e) => {
-    if (!isEnabled || !touchStateRef.current || !touchStateRef.current.moving) return;
-    
     const state = touchStateRef.current;
-    const endTime = Date.now();
-    const touchDuration = endTime - state.touchStartTime;
     
-    // Calculer les métriques du swipe
+    // Si pas d'état de toucher valide, ignorer
+    if (!state || !state.moving) {
+      return;
+    }
+    
+    const endTime = Date.now();
+    const touchDuration = endTime - state.touchStartTime; // Utiliser le temps de début initial
+    
+    // Calculer la distance totale du swipe
     const distanceX = Math.abs(state.totalX);
+    
+    // Direction du swipe (-1 pour gauche, 1 pour droite)
     const direction = Math.sign(state.totalX);
     
-    // Calculer la vélocité moyenne et instantanée
+    // AMÉLIORÉ: Utiliser une vélocité moyenne et instantanée
+    // Pour les swipes très courts, la vélocité instantanée peut être plus fiable
     const avgVelocity = distanceX / touchDuration; // px/ms
     const instantVelocity = state.velocityX;
     
-    // Utiliser la plus grande vélocité pour favoriser les swipes courts
+    // Utiliser la plus grande des deux vélocités pour favoriser les swipes courts
     const effectiveVelocity = Math.max(avgVelocity, Math.abs(instantVelocity));
     
-    // Seuil adaptatif pour les swipes courts mais rapides
+    // Débogage
+    logger.log("Touch end:", {
+      durée: touchDuration,
+      distance: distanceX,
+      direction,
+      vélocitéInstantanée: instantVelocity,
+      vélocitéMoyenne: avgVelocity,
+      vélocitéEffective: effectiveVelocity,
+      moveType: state.moveType
+    });
+    
+    // AMÉLIORÉ: Ajuster les seuils pour mieux détecter les swipes courts mais rapides
+    // Réduire le seuil de distance minimale pour les swipes très rapides
     const effectiveMinDistance = touchDuration < 150 
         ? swipeOptions.minSwipeDistance / 2 
         : swipeOptions.minSwipeDistance;
     
-    // Vérifier si c'est un swipe valide
+    // Vérifier si c'est un swipe valide:
+    // 1. Mouvement horizontal détecté
+    // 2. Durée inférieure au seuil
+    // 3. Distance suffisante (adaptative)
+    // 4. Vélocité suffisante
     const isSwipe = 
       state.moveType === 'horizontal' &&
       touchDuration < swipeOptions.swipeDurationThreshold &&
       distanceX > effectiveMinDistance &&
-      effectiveVelocity > swipeOptions.minSwipeVelocity;
+      effectiveVelocity > swipeOptions.swipeThreshold / 1000; // Convertir en px/ms
 
-    if (isSwipe && onCameraRotate) {
-      // Convertir la vélocité en px/frame (60fps estimé)
-      const frameVelocity = effectiveVelocity * 16.66;
+    if (isSwipe) {
+      // AMÉLIORÉ: Passer plus d'informations à applyInertia
+      logger.log("Swipe valide détecté! Lancement de l'inertie", effectiveVelocity);
       
-      // Appliquer l'inertie
+      // Convertir la vélocité en px/frame (60fps estimé)
+      const frameVelocity = effectiveVelocity * 16.66; // ~60fps
+      
+      // Passer la durée du toucher et la distance pour un meilleur ajustement de l'inertie
       applyInertia(frameVelocity, direction, touchDuration, distanceX);
+    } else {
+      logger.log("Mouvement non considéré comme swipe", {
+        distanceX, 
+        touchDuration,
+        seuilDistance: effectiveMinDistance,
+        effectiveVelocity,
+        seuilVelocite: swipeOptions.swipeThreshold / 1000
+      });
     }
     
     // Réinitialiser l'état du toucher
@@ -380,272 +401,50 @@ export default function TouchControls({
       totalX: 0,
       totalY: 0,
       velocityX: 0,
-      velocityY: 0,
-      lastTime: 0,
-      touchStartTime: 0
+      lastTime: 0
     };
-  }, [isEnabled, onCameraRotate, applyInertia, swipeOptions]);
+  }, [applyInertia]);
   
   /**
-   * Attache les écouteurs d'événements tactiles
-   * @param {HTMLElement} element - Élément auquel attacher les événements
-   * @returns {Function} - Fonction de nettoyage
+   * Nettoyage lors du démontage
    */
-  const attachTouchListeners = useCallback((element) => {
-    if (!element) return () => {};
-    
-    // Attacher les gestionnaires d'événements
-    element.addEventListener('touchstart', handleTouchStart, { passive: false });
-    element.addEventListener('touchmove', handleTouchMove, { passive: false });
-    element.addEventListener('touchend', handleTouchEnd, { passive: false });
-    
-    // Fonction de nettoyage
-    return () => {
-      element.removeEventListener('touchstart', handleTouchStart);
-      element.removeEventListener('touchmove', handleTouchMove);
-      element.removeEventListener('touchend', handleTouchEnd);
-      stopInertia();
-    };
-  }, [handleTouchStart, handleTouchMove, handleTouchEnd, stopInertia]);
-  
-  /**
-   * Implémentation des contrôles de mouvement directionnels
-   * Similaire à MobileControls.jsx
-   */
-  const createMobileControls = useCallback(() => {
-    const MobileControls = ({ onMoveForward, onMoveBackward }) => {
-      // État pour les boutons
-      const forwardPressed = useRef(false);
-      const backwardPressed = useRef(false);
-      const intervalRef = useRef(null);
-      
-      // Référence pour le point de départ du toucher
-      const touchStartRef = useRef({
-        x: 0,
-        y: 0,
-        target: null,
-        direction: null
-      });
-      
-      // Seuil de mouvement pour considérer un glissement
-      const moveThreshold = 15;
-      
-      // Styles pour les contrôles
-      const styles = {
-        container: {
-          position: 'fixed',
-          bottom: '20px',
-          left: '0',
-          width: '100%',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: '30px',
-          zIndex: 1000,
-          pointerEvents: 'none'
-        },
-        button: {
-          width: '60px',
-          height: '60px',
-          borderRadius: '50%',
-          backgroundColor: 'rgba(255, 255, 255, 0.7)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          fontSize: '24px',
-          color: '#2A9D8F',
-          border: 'none',
-          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)',
-          cursor: 'pointer',
-          pointerEvents: 'auto',
-          WebkitTapHighlightColor: 'transparent',
-          touchAction: 'manipulation'
-        }
-      };
-      
-      // Nettoyer l'état des contrôles
-      const clearControlsState = () => {
-        forwardPressed.current = false;
-        backwardPressed.current = false;
-        
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
-      };
-      
-      // Gestionnaire pour le début du toucher
-      const handleTouchStart = (e, direction) => {
-        // Vérifier si le toucher est au centre du bouton
-        const touch = e.touches[0];
-        const rect = e.currentTarget.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        const distanceFromCenter = Math.sqrt(
-          Math.pow(touch.clientX - centerX, 2) + 
-          Math.pow(touch.clientY - centerY, 2)
-        );
-        
-        // Si clairement sur le bouton (pas près du bord)
-        if (distanceFromCenter < rect.width * 0.35) {
-          e.preventDefault();
-          e.stopPropagation();
-          
-          // Enregistrer le point de départ
-          touchStartRef.current = {
-            x: touch.clientX,
-            y: touch.clientY,
-            target: e.currentTarget,
-            direction: direction
-          };
-          
-          // Arrêter tout mouvement existant
-          clearControlsState();
-          
-          // Définir l'état approprié
-          if (direction === 'forward') {
-            forwardPressed.current = true;
-            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
-            e.currentTarget.style.transform = 'scale(1.1)';
-            onMoveForward();
-          } else {
-            backwardPressed.current = true;
-            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
-            e.currentTarget.style.transform = 'scale(1.1)';
-            onMoveBackward();
-          }
-          
-          // Établir un mouvement continu
-          intervalRef.current = setInterval(() => {
-            if (direction === 'forward' && forwardPressed.current) {
-              onMoveForward();
-            } else if (direction === 'backward' && backwardPressed.current) {
-              onMoveBackward();
-            }
-          }, 50);
-          
-          // Attacher un gestionnaire global pour le touchmove
-          document.addEventListener('touchmove', handleGlobalTouchMove, { passive: false });
-        }
-      };
-      
-      // Gestionnaire global pour détecter si le doigt glisse
-      const handleGlobalTouchMove = (e) => {
-        if (!touchStartRef.current.target) return;
-        
-        const touch = e.touches[0];
-        const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
-        const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
-        
-        // Si le mouvement dépasse le seuil
-        if (deltaX > moveThreshold || deltaY > moveThreshold) {
-          // Réinitialiser les styles
-          if (touchStartRef.current.target) {
-            touchStartRef.current.target.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
-            touchStartRef.current.target.style.transform = 'scale(1)';
-          }
-          
-          // Arrêter le mouvement
-          clearControlsState();
-          
-          // Nettoyer la référence
-          touchStartRef.current = {
-            x: 0,
-            y: 0,
-            target: null,
-            direction: null
-          };
-          
-          // Détacher le gestionnaire
-          document.removeEventListener('touchmove', handleGlobalTouchMove);
-        }
-      };
-      
-      // Gestionnaire pour la fin du toucher
-      const handleTouchEnd = (e) => {
-        // Réinitialiser les styles
-        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
-        e.currentTarget.style.transform = 'scale(1)';
-        
-        // Nettoyer
-        clearControlsState();
-        
-        // Nettoyer la référence
-        touchStartRef.current = {
-          x: 0,
-          y: 0,
-          target: null,
-          direction: null
-        };
-        
-        // Détacher le gestionnaire
-        document.removeEventListener('touchmove', handleGlobalTouchMove);
-      };
-      
-      // Nettoyer lors du démontage
-      useEffect(() => {
-        return () => {
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-          }
-          document.removeEventListener('touchmove', handleGlobalTouchMove);
-        };
-      }, []);
-      
-      return (
-        <div style={styles.container}>
-          <button
-            style={styles.button}
-            onTouchStart={(e) => handleTouchStart(e, 'forward')}
-            onTouchEnd={handleTouchEnd}
-            onTouchCancel={handleTouchEnd}
-            aria-label="Avancer"
-          >
-            ▲
-          </button>
-          <button
-            style={styles.button}
-            onTouchStart={(e) => handleTouchStart(e, 'backward')}
-            onTouchEnd={handleTouchEnd}
-            onTouchCancel={handleTouchEnd}
-            aria-label="Reculer"
-          >
-            ▼
-          </button>
-        </div>
-      );
-    };
-    
-    return MobileControls;
-  }, []);
-  
-  /**
-   * Active ou désactive les contrôles tactiles
-   * @param {Boolean} enabled - État d'activation
-   */
-  const setEnabled = useCallback((enabled) => {
-    setIsEnabled(enabled);
-    if (!enabled) {
-      stopInertia();
-    }
-  }, [stopInertia]);
-  
-  // Nettoyer au démontage
   useEffect(() => {
     return () => {
       stopInertia();
     };
   }, [stopInertia]);
   
+  /**
+   * Attache les écouteurs d'événements tactiles
+   */
+  const attachTouchListeners = useCallback((element) => {
+    if (!element) return () => {};
+    
+    // Réinitialiser les états
+    cameraPosRef.current = { x: 0, y: 0 };
+    
+    // Attacher les gestionnaires d'événements
+    element.addEventListener('touchstart', handleTouchStart, { passive: false });
+    element.addEventListener('touchmove', handleTouchMove, { passive: false });
+    element.addEventListener('touchend', handleTouchEnd, { passive: false });
+    
+    logger.log("Contrôles tactiles de swipe attachés à l'élément", element);
+    
+    // Fonction de nettoyage
+    return () => {
+      element.removeEventListener('touchstart', handleTouchStart);
+      element.removeEventListener('touchmove', handleTouchMove);
+      element.removeEventListener('touchend', handleTouchEnd);
+      
+      stopInertia();
+      
+      logger.log("Contrôles tactiles détachés");
+    };
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd, stopInertia]);
+  
   // Retourner l'API du hook
   return {
     attachTouchListeners,
-    stopInertia,
-    setEnabled,
-    isEnabled,
-    MobileControls: createMobileControls(),
-    handleTouchStart,
-    handleTouchMove,
-    handleTouchEnd
+    stopInertia
   };
 }
