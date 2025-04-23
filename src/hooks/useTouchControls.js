@@ -166,7 +166,7 @@ export default function useTouchControls({
     // mais uniquement si c'est un mouvement horizontal
     if (onMouseMove && (state.moveType === 'horizontal' || !state.moveType)) {
       // Convertir en coordonnées normalisées (-1 à 1)
-      let normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
+      const normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
       
       // IMPORTANT: Inverser la direction en temps réel aussi pour correspondre à l'inertie
       if (swipeOptions.invertDirection) {
