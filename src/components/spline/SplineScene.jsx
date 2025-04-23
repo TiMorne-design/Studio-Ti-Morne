@@ -2,53 +2,88 @@
  * Composant SplineScene
  * Gère le rendu et les interactions avec la scène Spline
  */
-import React, { useRef, useImperativeHandle, forwardRef, useEffect } from 'react';
+import React, { useRef, useImperativeHandle, forwardRef, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import Spline from '@splinetool/react-spline';
-import useCameraControls from './useCameraControls';
+import MouseControls from '../controls/MouseControls';
+import TouchControls from '../controls/TouchControls';
 import useAnimation from '../../hooks/useAnimation';
-import cameraUtils from '../../utils/cameraUtils';
 import splineHelpers from '../../utils/splineHelpers';
 import debugUtils from '../../utils/debugUtils';
 import { getObjectId, isPortfolioDoor } from '../../utils/objectUtils';
 import { BUTTON_IDS } from '../../constants/ids';
+import useDeviceDetection from '../../hooks/useDeviceDetection';
 
 const { logger } = debugUtils;
 
 /**
- * Composant de scène Spline avec contrôles de caméra améliorés
+ * Composant de scène Spline avec contrôles adaptés à tous les appareils
  */
 const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad, qualityLevel }, ref) => {
   const splineRef = useRef(null);
   const cameraRef = useRef(null);
   const lastClickedButtonRef = useRef(null);
+  const { isMobile, isTablet } = useDeviceDetection();
   
-  // Utiliser les hooks personnalisés
-  const {
-    initializeCamera,
-    handleWheel,
-    handleMouseMove,
-    handleButtonClick,
-    restorePreviousCameraState,
-    moveCamera,
-    directCameraMovement,
-    toggleControls,
-    restoreControlsOnly,
-    isControlsEnabled,
-    hasPreviousState
-  } = useCameraControls(cameraRef, splineRef);
+  // État pour la détection du type de contrôle actif
+  const [controlType, setControlType] = useState('mouse');
+  
+  // Limites de la caméra
+  const cameraLimits = {
+    minZ: -3200,      // Limite avant (fond du chalet)
+    maxZ: 1200,       // Limite arrière (extérieur de la terrasse)
+    doorThreshold: -800, // Seuil de la porte
+    doorTrigger: -400  // Position de déclenchement de la porte
+  };
+  
+  // Utiliser les hooks de contrôle
+  const mouseControls = MouseControls({
+    cameraRef,
+    splineRef,
+    onCameraChange: (state) => {
+      // Callback pour les changements de caméra (optionnel)
+    }
+  });
+  
+  const touchControls = TouchControls({
+    onCameraRotate: (e) => {
+      if (mouseControls.isControlsEnabled) {
+        mouseControls.handleMouseMove(e);
+      }
+    },
+    onCameraMove: (distance) => {
+      if (mouseControls.isControlsEnabled) {
+        mouseControls.moveCamera(distance);
+      }
+    },
+    splineRef,
+    limits: cameraLimits
+  });
   
   const { animateCamera } = useAnimation();
   
+  // Fonction pour déterminer le type de contrôle actif
+  const updateControlType = () => {
+    const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+    setControlType(isTouchDevice || isMobile || isTablet ? 'touch' : 'mouse');
+  };
+  
+  useEffect(() => {
+    // Détecter le type d'appareil au montage
+    updateControlType();
+    
+    // Ajouter un listener pour détecter les changements (rotation d'écran, etc.)
+    window.addEventListener('resize', updateControlType);
+    
+    return () => {
+      window.removeEventListener('resize', updateControlType);
+    };
+  }, [isMobile, isTablet]);
+  
   /**
    * Anime la caméra vers une position et rotation cibles
-   * @param {Object} options - Options d'animation
-   * @param {Object} options.position - Position cible {x, y, z}
-   * @param {Object} options.rotation - Rotation cible en degrés {x, y, z}
-   * @param {Number} options.duration - Durée de l'animation en ms
-   * @param {Boolean} options.preventAutoReset - Si true, empêche tout retour automatique
    */
-  const handleAnimateCamera = ({ position, rotation, duration = 2000, preventAutoReset = false }) => {
+  const handleAnimateCamera = ({ position, rotation, duration = 2000 }) => {
     if (!cameraRef.current) {
       logger.warn("Impossible d'animer la caméra: référence caméra manquante");
       return;
@@ -57,20 +92,10 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
     logger.log("Animation de la caméra:", {
       positionCible: position,
       rotationCible: rotation,
-      durée: duration,
-      preventAutoReset: preventAutoReset
+      durée: duration
     });
     
-    // Utiliser le hook d'animation pour l'animation fluide
-    animateCamera(cameraRef.current, {
-      position,
-      rotation,
-      duration,
-      easing: 'easeOutCubic',
-      onComplete: () => {
-        logger.log("Animation de caméra terminée");
-      }
-    });
+    mouseControls.animateCamera({ position, rotation, duration });
   };
   
   // Exposer les méthodes aux composants parents via ref
@@ -79,101 +104,58 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
     getSplineInstance: () => splineRef.current,
     
     // Gestion des contrôles de caméra
-    handleButtonClick,
-    handleWheel, 
-    handleMouseMove: (e) => {
-      // Détecter si l'événement vient d'un appareil tactile
-      const isTouchEvent = e.isTouchEvent === true || e.type === 'touchmove';
-      
-      // Si c'est un événement tactile généré par useTouchControls, le passer directement
-      // car il contient déjà les valeurs normalisées correctes
-      if (isTouchEvent && e.normalizedX !== undefined) {
-        // On peut ajouter un petit log pour le débogage si nécessaire
-        // console.log("Événement tactile avec normalizedX:", e.normalizedX);
-        
-        // Passer l'événement tactile tel quel à handleMouseMove
-        handleMouseMove(e);
-        return;
+    handleButtonClick: mouseControls.handleButtonClick,
+    
+    // Contrôles de mouvement
+    handleWheel: (e) => {
+      if (controlType === 'mouse') {
+        mouseControls.handleWheel(e);
       }
-      
-      // Pour les événements de souris ou les événements tactiles simples (sans normalizedX),
-      // nous pouvons appliquer un léger lissage
-      if (!isTouchEvent) {
-        // Référence statique pour stocker les valeurs précédentes de la souris
-        if (!handleMouseMove.prevMouseX) {
-          handleMouseMove.prevMouseX = 0;
-          handleMouseMove.prevMouseY = 0;
-        }
-        
-        // Normaliser les coordonnées de souris (-1 à 1)
-        const normalizedX = (e.clientX / window.innerWidth) * 2 - 1;
-        const normalizedY = (e.clientY / window.innerHeight) * 2 - 1;
-        
-        // Appliquer un léger lissage pour les mouvements de souris
-        const smoothingFactor = 0.2; // Plus petit que pour les événements tactiles
-        
-        const smoothedX = handleMouseMove.prevMouseX * (1 - smoothingFactor) + 
-                           normalizedX * smoothingFactor;
-        const smoothedY = handleMouseMove.prevMouseY * (1 - smoothingFactor) + 
-                           normalizedY * smoothingFactor;
-        
-        // Mettre à jour les valeurs précédentes
-        handleMouseMove.prevMouseX = smoothedX;
-        handleMouseMove.prevMouseY = smoothedY;
-        
-        // Créer un événement filtré
-        const filteredEvent = {
-          ...e,
-          normalizedX: smoothedX,
-          normalizedY: smoothedY
-        };
-        
-        // Passer l'événement filtré
-        handleMouseMove(filteredEvent);
-        return;
-      }
-      
-      // Si c'est un événement tactile simple, le passer tel quel
-      handleMouseMove(e);
     },
-  
-    restorePreviousCameraState,
-    hasPreviousState,
+    
+    handleMouseMove: (e) => {
+      if (controlType === 'mouse') {
+        mouseControls.handleMouseMove(e);
+      }
+    },
+    
+    // Gestion des états
+    restorePreviousCameraState: mouseControls.restorePreviousCameraState,
+    hasPreviousState: mouseControls.hasPreviousState,
     
     // Animation de caméra
     animateCamera: handleAnimateCamera,
-
-    // Nouvelle fonction spécifique pour la vue portfolio
+    
+    // Vue portfolio spécifique
     moveToPortfolioView: (portfolioParams) => {
       if (!cameraRef.current) {
         logger.warn("Impossible d'animer la caméra vers portfolio: référence caméra manquante");
         return false;
       }
       
-      logger.log("Déplacement direct vers la vue portfolio", portfolioParams);
+      // Convertir les rotations de degrés (format Spline) en radians (format Three.js/React)
+      const convertedRotation = {
+        x: portfolioParams.rotation.x * Math.PI / 180,
+        y: portfolioParams.rotation.y * Math.PI / 180,
+        z: portfolioParams.rotation.z * Math.PI / 180
+      };
       
-        // Convertir les rotations de degrés (format Spline) en radians (format Three.js/React)
-  const convertedRotation = {
-    x: portfolioParams.rotation.x * Math.PI / 180,
-    y: portfolioParams.rotation.y * Math.PI / 180,
-    z: portfolioParams.rotation.z * Math.PI / 180
-  };
-  
-  // Utiliser directCameraMovement avec rotation convertie
-  return directCameraMovement(
-    portfolioParams.position,
-    convertedRotation
-  );
-},
+      mouseControls.animateCamera({
+        position: portfolioParams.position,
+        rotation: {
+          x: portfolioParams.rotation.x,
+          y: portfolioParams.rotation.y,
+          z: portfolioParams.rotation.z
+        },
+        duration: 2000
+      });
+      
+      return true;
+    },
     
-    // Exposer moveCamera pour permettre le déplacement direct
+    // Déplacement de caméra
     moveCamera: (distance) => {
-      if (typeof moveCamera === 'function') {
-        return moveCamera(distance);
-      }
-      // Fallback : simuler un événement de défilement
-      const simulatedEvent = { deltaY: distance };
-      handleWheel(simulatedEvent);
+      mouseControls.moveCamera(distance);
       return true;
     },
     
@@ -194,68 +176,22 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
             return true;
           }
           
-          // Plan B : Si la réinitialisation directe échoue, tenter une approche alternative
-          logger.warn("Échec de la première méthode de réinitialisation, tentative de plan B");
-          
-          if (cameraRef.current) {
-            splineHelpers.emitEvent(splineRef.current, 'resetAllStates', cameraRef.current.uuid);
-            return true;
-          }
+          return false;
         } catch (error) {
           logger.error("Erreur lors de la réinitialisation des états de caméra:", error);
+          return false;
         }
       }
       
       return false;
     },
     
-    // Obtenir le dernier bouton cliqué
-    getLastClickedButton: () => lastClickedButtonRef.current,
-    
-    // Vérifier si les contrôles sont activés
-    isControlsEnabled: () => isControlsEnabled,
-
-    restoreControlsOnly: () => {
-      // Pas besoin de vérifier si la fonction existe, appelons-la directement
-      toggleControls(true);  // Utiliser toggleControls pour activer les contrôles
-     
-      // Réinitialiser le dernier bouton cliqué si nécessaire
-      if (splineRef.current && lastClickedButtonRef.current) {
-        try {
-          // Tenter de réinitialiser l'animation du dernier bouton cliqué
-          splineHelpers.emitEventReverse(
-            splineRef.current, 
-            'mouseUp', 
-            lastClickedButtonRef.current
-          );
-          
-          // Réinitialiser la référence
-          lastClickedButtonRef.current = null;
-        } catch (error) {
-          logger.error("Erreur lors de la réinitialisation du bouton:", error);
-        }
-      }
-      
-      return true;  // Toujours retourner true pour indiquer le succès
-    },
-
+    // Gestion des contrôles
+    isControlsEnabled: mouseControls.isControlsEnabled,
+    restoreControlsOnly: mouseControls.restoreControlsOnly,
     toggleCameraControls: (enabled) => {
-      toggleControls(enabled);
-      return true;
-    },
-
-    _setCameraControlsEnabled: (enabled) => {
-      // Utiliser les méthodes que nous avons déjà
-      if (enabled) {
-        // Si on veut activer les contrôles, utiliser la fonction restorePreviousCameraState
-        // qui réactive les contrôles sans animation
-        restorePreviousCameraState(0);
-      } else {
-        // Si on veut désactiver les contrôles, utiliser handleButtonClick
-        handleButtonClick();
-      }
-      
-      logger.log(`Contrôles de caméra ${enabled ? 'activés' : 'désactivés'} manuellement`);
+      mouseControls.setControlsEnabled(enabled);
+      touchControls.setEnabled(enabled);
       return true;
     }
   }));
@@ -268,20 +204,15 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
     logger.log('Spline chargé');
     splineRef.current = splineApp;
     
-    // Exposer l'instance Spline globalement
-    window.splineInstance = splineApp;
-    
-    // Tenter de trouver la caméra (d'abord par son nom spécifique, puis par défaut)
+    // Tenter de trouver la caméra
     const camera = splineApp.findObjectByName("Character") || splineApp.camera;
     
     if (camera) {
-      initializeCamera(camera);
+      cameraRef.current = camera;
+      mouseControls.initializeCamera(camera);
     } else {
       logger.error('Aucune caméra disponible dans la scène Spline');
     }
-    
-    // Analyser l'instance Spline pour le débogage
-    splineHelpers.analyzeSplineInstance(splineApp);
     
     // Appliquer la qualité visuelle si spécifiée
     if (qualityLevel && splineApp.setQuality) {
@@ -291,6 +222,11 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
       } catch (error) {
         logger.error("Erreur lors de l'application du niveau de qualité:", error);
       }
+    }
+    
+    // Attacher les contrôles tactiles si nécessaire
+    if (controlType === 'touch') {
+      touchControls.attachTouchListeners(window);
     }
     
     // Appeler la fonction onLoad des props si elle existe
@@ -320,21 +256,13 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
     const isPortfolioButton = objectId === BUTTON_IDS.PORTFOLIO && 
                            (objectName === 'BUTTON_PORTFOLIO' || objectName.includes('BUTTON_PORTFOLIO'));
   
-    // IMPORTANT: pour le bouton portfolio, nous ne faisons rien de spécial ici 
-    // mais nous empêchons EXPLICITEMENT le comportement standard des boutons.
-    // La gestion sera faite entièrement via moveToPortfolioView
+    // Pour le bouton portfolio, nous ne faisons rien de spécial ici
     if (isPortfolioButton) {
-      logger.log("Bouton portfolio détecté dans SplineScene - pas de désactivation des contrôles");
-      
-      // TRÈS IMPORTANT: Ne pas stocker lastClickedButtonRef.current pour le portfolio
-      // car c'est ce qui est utilisé pour restaurer l'état plus tard
-      // lastClickedButtonRef.current = objectId; <-- COMMENTÉ OU SUPPRIMÉ
-      
-      // On transmet simplement l'événement au parent qui utilisera notre fonction spéciale
+      logger.log("Bouton portfolio détecté - pas de désactivation des contrôles");
     }
     // Si ce n'est pas le bouton portfolio, gérer normalement
     else if (!isAutomaticDoorOpening && !isPortfolioDoorObj) {
-      // Vérification des boutons comme avant
+      // Vérification des boutons
       const buttonPatterns = [
         /BUTTON_/i, /DATAVIZ/i, /3D/i, /SITE/i, /PORTE_/i, /PRESTATIONS/i, /ABOUT/i
       ];
@@ -350,7 +278,8 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
         lastClickedButtonRef.current = objectId || objectUuid;
         
         // Désactiver les contrôles et sauvegarder l'état actuel
-        handleButtonClick();
+        mouseControls.handleButtonClick();
+        touchControls.setEnabled(false);
       }
     } else if (isPortfolioDoorObj) {
       // Pour la porte portfolio, stocker l'ID sans désactiver les contrôles
@@ -371,8 +300,16 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
     // Nettoyer la variable globale au démontage
     return () => {
       delete window.__automaticDoorOpening;
+      
+      // Arrêter l'inertie tactile si elle est active
+      if (touchControls.stopInertia) {
+        touchControls.stopInertia();
+      }
     };
-  }, []);
+  }, [touchControls]);
+  
+  // Composant MobileControls si nécessaire
+  const MobileControls = controlType === 'touch' ? touchControls.MobileControls : null;
   
   return (
     <div
@@ -381,14 +318,22 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
         height: '100vh',
         position: 'relative'
       }}
-      onWheel={handleWheel}
-      onMouseMove={handleMouseMove}
+      onWheel={mouseControls.handleWheel}
+      onMouseMove={mouseControls.handleMouseMove}
     >
       <Spline
         scene={scenePath}
         onLoad={onLoad}
         onSplineMouseUp={onSplineMouseUp}
       />
+      
+      {/* Rendu conditionnel des contrôles mobiles */}
+      {controlType === 'touch' && MobileControls && (
+        <MobileControls
+          onMoveForward={() => mouseControls.moveCamera(-400)}
+          onMoveBackward={() => mouseControls.moveCamera(400)}
+        />
+      )}
     </div>
   );
 });
