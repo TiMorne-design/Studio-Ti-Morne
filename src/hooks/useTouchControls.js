@@ -166,11 +166,16 @@ export default function useTouchControls({
     // mais uniquement si c'est un mouvement horizontal
     if (onMouseMove && (state.moveType === 'horizontal' || !state.moveType)) {
       // Convertir en coordonnées normalisées (-1 à 1)
-      const normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
+      let normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
+      
+      // IMPORTANT: Inverser la direction en temps réel aussi pour correspondre à l'inertie
+      if (swipeOptions.invertDirection) {
+        normalizedX = -normalizedX;
+      }
       
       // Créer un événement simulé avec le flag tactile
       const simulatedEvent = {
-        clientX: touch.clientX,
+        clientX: window.innerWidth * (0.5 - normalizedX * 0.5), // Ajusté pour l'inversion
         clientY: touch.clientY,
         normalizedX: normalizedX,
         normalizedY: 0, // On maintient vertical à 0 pour mieux contrôler
@@ -187,7 +192,7 @@ export default function useTouchControls({
         e.stopPropagation();
       }
     }
-  }, [onMouseMove, threshold, swipeOptions.minSwipeDistance]);
+  }, [onMouseMove, threshold, swipeOptions.minSwipeDistance, swipeOptions.invertDirection]);
   
   /**
    * Applique l'inertie après un swipe - AJUSTÉE avec direction inversée
