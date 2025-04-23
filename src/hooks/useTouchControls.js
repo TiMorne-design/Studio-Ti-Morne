@@ -53,8 +53,8 @@ export default function useTouchControls({
     minSwipeDistance: 5, // Maintenu
     maxVelocity: 3.0, // Vélocité maximale réduite (5.0 -> 3.0)
     inertiaDuration: 600, // Durée minimale réduite (1000 -> 600)
-    invertDirection: true, // NOUVEAU: Inverser la direction pour correspondre aux attentes
-  };
+    invertDirection: false, // FALSE pour le mode "Look Around"
+};
   
   /**
    * Arrête l'inertie en cours
@@ -166,16 +166,11 @@ export default function useTouchControls({
     // mais uniquement si c'est un mouvement horizontal
     if (onMouseMove && (state.moveType === 'horizontal' || !state.moveType)) {
       // Convertir en coordonnées normalisées (-1 à 1)
-      let normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
-      
-      // IMPORTANT: Inverser la direction en temps réel aussi pour correspondre à l'inertie
-      if (swipeOptions.invertDirection) {
-        normalizedX = -normalizedX;
-      }
+      const normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
       
       // Créer un événement simulé avec le flag tactile
       const simulatedEvent = {
-        clientX: window.innerWidth * (0.5 - normalizedX * 0.5), // Ajusté pour l'inversion
+        clientX: touch.clientX, // Ajusté pour l'inversion
         clientY: touch.clientY,
         normalizedX: normalizedX,
         normalizedY: 0, // On maintient vertical à 0 pour mieux contrôler
