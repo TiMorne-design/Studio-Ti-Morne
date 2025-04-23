@@ -98,16 +98,14 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
           
           // Si les valeurs normalisées sont définies, les utiliser directement
           if (event.normalizedX !== undefined) {
-            // AJOUT: Inverser la direction pour les événements tactiles
-            const invertedX = -event.normalizedX;
-            
+                     
             // Appliquer un lissage entre l'ancienne et la nouvelle valeur
         const smoothingFactor = 0.35; // Plus petit = plus de lissage
         const smoothedX = filterMouseEvent.prevX * (1 - smoothingFactor) + 
                            invertedX * smoothingFactor;
         const smoothedY = filterMouseEvent.prevY * (1 - smoothingFactor) + 
                            (event.normalizedY || 0) * smoothingFactor;
-                           
+
             // Mettre à jour les valeurs précédentes
             filterMouseEvent.prevX = smoothedX;
             filterMouseEvent.prevY = smoothedY;
