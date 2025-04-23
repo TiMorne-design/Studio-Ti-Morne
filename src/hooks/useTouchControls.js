@@ -160,8 +160,12 @@ export default function useTouchControls({
     // Convertir en coordonnées normalisées pour la rotation (-1 à 1)
   const normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
   
-  // Envoyer directement le mouvement à la caméra pour la rotation horizontale
-  if (state.moveType === 'horizontal' && onMouseMove) {
+  // IMPORTANT: Envoyer les événements de mouvement pour la rotation en temps réel
+  // mais uniquement si c'est un mouvement horizontal
+  if (onMouseMove && (state.moveType === 'horizontal' || !state.moveType)) {
+    // Convertir en coordonnées normalisées (-1 à 1)
+    const normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
+    
     // Créer un événement simulé avec le flag tactile
     const simulatedEvent = {
       clientX: touch.clientX,

@@ -203,38 +203,21 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
         const dz = targetPosition.current.z - currentPos.z;
         currentPos.z += dz * config.smoothFactor;
 
-
-        // Sur desktop ET sur terrasse ET avant le premier demi-tour, désactiver les contrôles de rotation
-        if (isOnTerrace.current && !isTouchDevice && !hasPerformedFirstTurn.current) {
-        // Ne pas appliquer de rotation, mais recentrer progressivement
-        const returnFactor = config.smoothFactor;
-          
-          // Recentrage de la position horizontale
-          currentPos.x += (initialPosition.current.x - currentPos.x) * returnFactor;
-          currentPos.y += (initialPosition.current.y - currentPos.y) * returnFactor;
-          
-          // Rétablir la rotation neutre
-          const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
-          currentRot.x += (0 - currentRot.x) * returnFactor;
-          currentRot.y += (baseAngle - currentRot.y) * returnFactor;
-        } else {
-          // Dans tous les autres cas (mobile tout le temps, desktop à l'intérieur ou après demi-tour),
-          // permettre la rotation normale
-           const dx = targetPosition.current.x - currentPos.x;
-           const dy = targetPosition.current.y - currentPos.y;
-          
-          currentPos.x += dx * config.smoothFactor;
-          currentPos.y += dy * config.smoothFactor;
-          
-          // Appliquer les rotations de manière fluide
-          const drx = targetRotation.current.x - currentRot.x;
-          const dry = targetRotation.current.y - currentRot.y;
-          
-          currentRot.x += drx * config.smoothFactor;
-          currentRot.y += dry * config.smoothFactor;
-        }
-
-        // Maintenir toujours la rotation Z à 0 pour éviter l'inclinaison
+        // Mouvements horizontaux et verticaux (X/Y)
+    const dx = targetPosition.current.x - currentPos.x;
+    const dy = targetPosition.current.y - currentPos.y;
+        
+        currentPos.x += dx * config.smoothFactor;
+        currentPos.y += dy * config.smoothFactor;
+        
+        // Appliquer les rotations de manière fluide
+        const drx = targetRotation.current.x - currentRot.x;
+        const dry = targetRotation.current.y - currentRot.y;
+        
+        currentRot.x += drx * config.smoothFactor;
+        currentRot.y += dry * config.smoothFactor;
+        
+        // Maintenir toujours la rotation Z à 0
         currentRot.z = 0;
       }
       
