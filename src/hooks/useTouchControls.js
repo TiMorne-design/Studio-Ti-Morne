@@ -373,7 +373,7 @@ export default function useTouchControls({
       const frameVelocity = effectiveVelocity * 16.66; // ~60fps
       
       // Passer la durée du toucher et la distance pour un meilleur ajustement de l'inertie
-      applyInertia(frameVelocity, direction, touchDuration, distanceX);
+      // applyInertia(frameVelocity, direction, touchDuration, distanceX);
     } else {
       logger.log("Mouvement non considéré comme swipe", {
         distanceX, 
