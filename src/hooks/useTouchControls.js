@@ -42,17 +42,18 @@ export default function useTouchControls({
   // Référence pour les animations d'inertie
   const inertiaIntervalRef = useRef(null);
   
-  // Paramètres pour le comportement du swipe - AMÉLIORÉS
+  // Paramètres pour le comportement du swipe - AJUSTÉS
   const swipeOptions = {
-    damping: 0.96, // Amortissement plus lent pour éviter le retour rapide (0.92 -> 0.96)
-    minSpeed: 0.05, // Seuil plus bas pour maintenir l'inertie plus longtemps (0.1 -> 0.05)
-    swipeThreshold: 0.8, // Seuil de vélocité plus bas pour les swipes rapides (1.5 -> 0.8)
-    swipeMultiplier: 2.5, // Effet plus prononcé, surtout pour les petits swipes (1.5 -> 2.5)
-    shortSwipeBoost: 1.8, // Boost spécial pour les swipes courts mais rapides
-    swipeDurationThreshold: 300, // Durée max réduite pour mieux détecter les swipes rapides (500 -> 300)
-    minSwipeDistance: 5, // Distance minimale réduite pour détecter les swipes courts (10 -> 5)
-    maxVelocity: 5.0, // Vélocité maximale augmentée (4.0 -> 5.0)
-    inertiaDuration: 1000, // Durée minimale garantie de l'inertie en ms
+    damping: 0.94, // Amortissement équilibré (0.96 -> 0.94)
+    minSpeed: 0.1, // Seuil légèrement augmenté pour réduire la durée d'inertie (0.05 -> 0.1)
+    swipeThreshold: 0.8, // Maintenu
+    swipeMultiplier: 1.2, // Effet réduit considérablement (2.5 -> 1.2)
+    shortSwipeBoost: 1.3, // Boost réduit pour swipes courts (1.8 -> 1.3)
+    swipeDurationThreshold: 300, // Maintenu
+    minSwipeDistance: 5, // Maintenu
+    maxVelocity: 3.0, // Vélocité maximale réduite (5.0 -> 3.0)
+    inertiaDuration: 600, // Durée minimale réduite (1000 -> 600)
+    invertDirection: true, // NOUVEAU: Inverser la direction pour correspondre aux attentes
   };
   
   /**
@@ -189,7 +190,7 @@ export default function useTouchControls({
   }, [onMouseMove, threshold, swipeOptions.minSwipeDistance]);
   
   /**
-   * Applique l'inertie après un swipe - AMÉLIORÉE pour les swipes courts mais rapides
+   * Applique l'inertie après un swipe - AJUSTÉE avec direction inversée
    */
   const applyInertia = useCallback((velocity, direction, touchDuration, distance) => {
     if (!onMouseMove) return;
@@ -197,31 +198,35 @@ export default function useTouchControls({
     // Arrêter toute inertie existante
     stopInertia();
     
+    // IMPORTANT: Inverser la direction si l'option est activée
+    if (swipeOptions.invertDirection) {
+      direction = -direction; // Inverser la direction (gauche→droite et droite→gauche)
+    }
+    
     // Stocker les informations d'inertie
     inertiaRef.current.direction = direction;
     inertiaRef.current.initialVelocity = velocity;
     
-    // AMÉLIORÉ: Boost pour les swipes courts mais rapides
-    // Si le swipe est court mais rapide, augmenter la vélocité
+    // Boost pour les swipes courts mais rapides (avec valeurs réduites)
     const isShortSwipe = touchDuration < 150 && distance < 50;
     const isVeryShortSwipe = touchDuration < 80 && distance < 30;
     
-    // Vélocité initiale (pixels par frame à 60fps)
+    // Vélocité initiale (pixels par frame à 60fps) - réduite
     let currentVelocity = velocity * swipeOptions.swipeMultiplier;
     
-    // Appliquer un boost supplémentaire pour les swipes courts mais rapides
+    // Appliquer un boost modéré pour les swipes courts mais rapides
     if (isVeryShortSwipe) {
-      currentVelocity *= swipeOptions.shortSwipeBoost * 1.5;
-      logger.log("Boost très élevé appliqué pour swipe très court", currentVelocity);
+      currentVelocity *= swipeOptions.shortSwipeBoost * 1.2; // Réduit (1.5 -> 1.2)
+      logger.log("Boost modéré appliqué pour swipe très court", currentVelocity);
     } else if (isShortSwipe) {
       currentVelocity *= swipeOptions.shortSwipeBoost;
-      logger.log("Boost élevé appliqué pour swipe court", currentVelocity);
+      logger.log("Boost appliqué pour swipe court", currentVelocity);
     }
     
-    // S'assurer qu'elle est dans la bonne direction
+    // S'assurer qu'elle est dans la bonne direction (maintenant inversée si option activée)
     currentVelocity = Math.abs(currentVelocity) * direction;
     
-    // Limiter la vélocité maximale
+    // Limiter la vélocité maximale (réduite)
     const maxVelocity = swipeOptions.maxVelocity;
     currentVelocity = Math.sign(currentVelocity) * Math.min(Math.abs(currentVelocity), maxVelocity);
     
@@ -235,7 +240,7 @@ export default function useTouchControls({
     const startTime = Date.now();
     const guaranteedDuration = swipeOptions.inertiaDuration;
     
-    // Fonction d'animation d'inertie
+    // Fonction d'animation d'inertie - AJUSTÉE
     const inertiaStep = () => {
       if (!inertiaRef.current.active || !onMouseMove) {
         stopInertia();
@@ -245,16 +250,16 @@ export default function useTouchControls({
       // Temps écoulé depuis le début de l'inertie
       const elapsedTime = Date.now() - startTime;
       
-      // AMÉLIORÉ: Amortissement variable - plus lent au début, plus rapide à la fin
-      const currentDamping = elapsedTime < guaranteedDuration / 3 
-          ? Math.max(0.97, swipeOptions.damping) // Très lent au début
+      // Amortissement plus régulier et progressif
+      const currentDamping = elapsedTime < guaranteedDuration / 4
+          ? Math.max(0.95, swipeOptions.damping) // Légèrement plus lent au début
           : swipeOptions.damping;
       
       // Appliquer l'amortissement
       currentVelocity *= currentDamping;
       
-      // NOUVEAU: Garantir que l'inertie dure au moins la durée minimale
-      const shouldContinue = elapsedTime < guaranteedDuration || 
+      // Garantir que l'inertie respecte la durée minimale mais s'arrête plus vite si trop lente
+      const shouldContinue = elapsedTime < guaranteedDuration / 2 || // Demi-durée garantie seulement
                             Math.abs(currentVelocity) >= swipeOptions.minSpeed;
       
       if (!shouldContinue) {
