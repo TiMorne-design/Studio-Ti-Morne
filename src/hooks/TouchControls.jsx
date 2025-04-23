@@ -634,7 +634,7 @@ export default function TouchControls({
   useEffect(() => {
     return () => {
       stopInertia();
-    }
+    };
   }, [stopInertia]);
   
   // Retourner l'API du hook

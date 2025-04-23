@@ -11,6 +11,8 @@ import WelcomeOverlay from '../components/overlays/WelcomeOverlay';
 import UnifiedOrientationOverlay from '../components/mobile/UnifiedOrientationOverlay';
 import NavigationToolbar from '../components/layout/NavigationToolbar';
 import ReturnButton from '../components/common/ReturnButton';
+import MobileControls from '../components/mobile/MobileControls';
+import MobileNavigationToolbar from '../components/mobile/MobileNavigationToolbar';
 import LiteExperience from '../components/mobile/LiteExperience';
 import { BUTTON_IDS, OBJECT_IDS } from '../constants/ids';
 import { 
@@ -24,6 +26,8 @@ import {
   isPortfolioDoor 
 } from '../utils/objectUtils';
 import useDeviceDetection from '../hooks/useDeviceDetection';
+import TouchControls from '../hooks/TouchControls';
+import useDoorTrigger from '../hooks/useDoorTrigger';
 import splineHelpers from '../utils/splineHelpers';
 import cameraUtils from '../utils/cameraUtils';
 import debugUtils from '../utils/debugUtils';
@@ -43,6 +47,7 @@ const { logger } = debugUtils;
 export default function CabinInterior() {
   const navigate = useNavigate();
   const splineSceneRef = useRef(null);
+  const touchControlsRef = useRef(null);
   
   // Détection de l'appareil
   const { 
@@ -75,10 +80,9 @@ export default function CabinInterior() {
   const portfolioButtonClickedRef = useRef(false);
   const doorHasBeenOpenedOnce = useRef(false);
   const doorIsOpenRef = useRef(false);
+  const proximityCheckRef = useRef(null);
   
-  /**
-   * Actions pour ouvrir la porte une seule fois
-   */
+  // Fonction pour ouvrir la porte une seule fois
   const openDoorOnce = useCallback(() => {
     // Vérifier si la porte a déjà été ouverte
     if (doorHasBeenOpenedOnce.current) {
@@ -112,6 +116,53 @@ export default function CabinInterior() {
       return false;
     }
   }, []);
+  
+  // Fonction pour vérifier la proximité de la porte et déclencher l'ouverture
+  const checkAndTriggerDoor = useCallback((doorId, camera, direction) => {
+    // Vérifier d'abord si la porte a déjà été ouverte
+    if (doorHasBeenOpenedOnce.current || window.__doorIsOpen === true) {
+      console.log("Vérification: porte déjà ouverte, ouverture ignorée");
+      return false;
+    }
+
+    // Si le bouton portfolio a été récemment cliqué, ne pas déclencher l'ouverture automatique
+    if (portfolioButtonClickedRef.current && doorId === OBJECT_IDS.PORTE_OUVERT) {
+      return false;
+    }
+    
+    if (!camera) return false;
+    
+    const limits = cameraUtils.getCameraLimits();
+    const posZ = camera.position.z;
+    
+    // Vérifier si on est dans la zone de déclenchement
+    if (direction > 0 && 
+        cameraUtils.isOnTerrace(posZ) && 
+        posZ <= limits.doorTrigger && 
+        posZ > limits.doorThreshold) {
+      
+      // Utiliser la fonction dédiée pour ouvrir la porte une seule fois
+      if (openDoorOnce()) {
+        // Marquer explicitement qu'il s'agit d'une ouverture automatique par proximité
+        window.__doorThresholdTriggered = true;
+        window.__automaticDoorOpening = true;
+        
+        // Réinitialiser les flags après un court délai
+        setTimeout(() => {
+          window.__doorThresholdTriggered = false;
+          window.__automaticDoorOpening = false;
+        }, 1000);
+        
+        logger.log("Ouverture automatique de la porte déclenchée par proximité");
+        return true;
+      }
+    }
+    
+    return false;
+  }, [openDoorOnce]);
+
+  // Utiliser le hook de déclenchement de porte
+  const { triggerDoor } = useDoorTrigger({ splineRef: splineSceneRef });
 
   // Initialiser les variables globales
   useEffect(() => {
@@ -131,9 +182,107 @@ export default function CabinInterior() {
       delete window.__doorIsOpen;
     };
   }, []);
+
+  // Effet pour vérifier régulièrement la proximité de la porte
+  useEffect(() => {
+    const checkProximity = () => {
+      // Vérifier si la porte est déjà ouverte
+      if (doorHasBeenOpenedOnce.current || doorIsOpenRef.current === true || window.__doorIsOpen === true) {
+        console.log("Vérification périodique: porte déjà ouverte, skip");
+        return;
+      }
+
+      // Si le bouton portfolio a été récemment cliqué, ne pas vérifier la proximité
+      if (portfolioButtonClickedRef.current) {
+        return;
+      }
+      
+      if (!splineSceneRef.current || !splineSceneRef.current.getSplineInstance) return;
+      
+      const splineApp = splineSceneRef.current.getSplineInstance();
+      if (!splineApp || !splineApp.camera) return;
+      
+      // Vérifier la proximité avec la porte portfolio
+      checkAndTriggerDoor(OBJECT_IDS.PORTE_OUVERT, splineApp.camera, 1);
+    };
+    
+    // Mettre en place un intervalle pour vérifier la proximité
+    proximityCheckRef.current = setInterval(checkProximity, 500);
+    
+    // Nettoyer l'intervalle lors du démontage
+    return () => {
+      if (proximityCheckRef.current) {
+        clearInterval(proximityCheckRef.current);
+      }
+    };
+  }, [checkAndTriggerDoor]);
+
+  /**
+   * Gestion du défilement pour avancer/reculer
+   */
+  const handleWheel = useCallback((e) => {
+    if (splineSceneRef.current) {
+      splineSceneRef.current.handleWheel(e);
+    }
+  }, []);
+  
+  // Utiliser le hook des contrôles tactiles
+  const { attachTouchListeners, stopInertia } = TouchControls({
+    onMouseMove: (e) => {
+      if (splineSceneRef.current) {
+        splineSceneRef.current.handleMouseMove(e);
+      }
+    },
+    sensitivity: isMobile ? 1.8 : 1.2
+  });
+  
+  // Stockez ces fonctions dans la référence
+  touchControlsRef.current = { stopInertia };
   
   /**
-   * Gestionnaire pour fermer les overlays
+   * Actions pour les boutons de navigation mobile
+   */
+  const handleMoveForward = useCallback(() => {
+    // Arrêter l'inertie existante avant de déplacer la caméra
+    if (touchControlsRef.current && touchControlsRef.current.stopInertia) {
+      touchControlsRef.current.stopInertia();
+    }
+  
+    if (!splineSceneRef.current) return;
+    
+    try {
+      if (splineSceneRef.current.moveCamera) {
+        splineSceneRef.current.moveCamera(-400);
+      } else {
+        const simulatedEvent = { deltaY: -300 };
+        splineSceneRef.current.handleWheel(simulatedEvent);
+      }
+    } catch (error) {
+      console.error("Erreur lors du déplacement vers l'avant:", error);
+    }
+  }, []);
+  
+  const handleMoveBackward = useCallback(() => {
+    // Arrêter l'inertie existante avant de déplacer la caméra
+    if (touchControlsRef.current && touchControlsRef.current.stopInertia) {
+      touchControlsRef.current.stopInertia();
+    }
+    if (!splineSceneRef.current) return;
+    
+    try {
+      if (splineSceneRef.current.moveCamera) {
+        splineSceneRef.current.moveCamera(400);
+      } else {
+        const simulatedEvent = { deltaY: 300 };
+        splineSceneRef.current.handleWheel(simulatedEvent);
+      }
+    } catch (error) {
+      console.error("Erreur lors du déplacement vers l'arrière:", error);
+    }
+  }, []);
+  
+  /**
+   * Gestion des overlays
    */
   const handleClosePrestationOverlay = useCallback(() => {
     setShowPrestationOverlay(false);
@@ -430,7 +579,7 @@ export default function CabinInterior() {
       objectName.includes('BUTTON_PORTFOLIO')) && 
       resolvedObjectId === BUTTON_IDS.PORTFOLIO;
 
-      const isPortfolioDoorObj = objectName === 'PORTE_OUVERT' || 
+    const isPortfolioDoorObj = objectName === 'PORTE_OUVERT' || 
       objectName.includes('PORTE_OUVERT');
 
     logger.log("Objet cliqué:", objectName, "ID:", resolvedObjectId);
@@ -540,6 +689,71 @@ export default function CabinInterior() {
       return () => clearTimeout(timer);
     }
   }, [isMobile, showMobileGuide]);
+  
+  // Ajoutez cette fonction dans CabinInterior.jsx
+// avant l'effet d'initialisation des contrôles tactiles
+
+/**
+ * Initialise les contrôles tactiles avec des options adaptées au dispositif
+ */
+const initializeTouchControls = useCallback(() => {
+  if (!isMobile && !isTablet) return;
+  
+  // Obtenir la densité de pixels pour ajuster la sensibilité
+  const pixelRatio = window.devicePixelRatio || 1;
+  
+  // Ajuster la sensibilité en fonction de la taille d'écran et de la densité de pixels
+  let touchSensitivity = 1.5; // Valeur de base
+  
+  // Réduire la sensibilité sur les petits écrans à haute densité
+  if (window.innerWidth < 400 && pixelRatio > 2) {
+    touchSensitivity = 1.5;
+  } 
+  // Réduire légèrement sur les tablettes
+  else if (isTablet) {
+    touchSensitivity = 1.6;
+  }
+  
+  // Vérifier l'orientation
+  if (isLandscape) {
+    // Réduire encore plus en mode paysage
+    touchSensitivity *= 0.95;
+  }
+  
+  logger.log("Initialisation des contrôles tactiles:", {
+    sensibilité: touchSensitivity,
+    appareil: isMobile ? "mobile" : "tablette",
+    orientation: isLandscape ? "paysage" : "portrait",
+    pixelRatio
+  });
+  
+  // Appliquer les contrôles tactiles à la fenêtre entière, pas juste au root
+  // Cela évite les problèmes de propagation des événements
+  const cleanup = attachTouchListeners(window);
+  
+  // Injecter une fonction globale pour forcer la fin de l'inertie si nécessaire
+  window.__stopTouchInertia = () => {
+    if (touchControlsRef.current && touchControlsRef.current.stopInertia) {
+      touchControlsRef.current.stopInertia();
+      console.log("Arrêt forcé de l'inertie tactile");
+    }
+  };
+  
+  return () => {
+    cleanup();
+    delete window.__stopTouchInertia;
+  };
+}, [isMobile, isTablet, isLandscape, attachTouchListeners]);
+
+
+// Ensuite remplacez l'effet existant par:
+useEffect(() => {
+  if (isMobile || isTablet) {
+    const cleanup = initializeTouchControls();
+    return cleanup;
+  }
+}, [isMobile, isTablet, initializeTouchControls]);
+  
       
   // Si l'appareil est trop peu puissant, afficher l'expérience allégée
   const preferFullExperience = localStorage.getItem('preferFullExperience') === 'true';
@@ -578,15 +792,14 @@ export default function CabinInterior() {
       
       {/* Navigation adaptative */}
       {isMobile || isTablet ? (
-        <NavigationToolbar 
+        <MobileNavigationToolbar 
           onNavigate={handleToolbarNavigation} 
           activeButtonId={activeButtonId}
-          isMobile={true}
         />
       ) : (
         <NavigationToolbar 
           onNavigate={handleToolbarNavigation}
-          isCameraControlsDisabled={splineSceneRef.current && !splineSceneRef.current.isControlsEnabled}
+          isCameraControlsDisabled={!splineSceneRef.current?.isControlsEnabled}
         />
       )}
       
@@ -615,13 +828,13 @@ export default function CabinInterior() {
         />
       )}
 
-      {/* Overlay de bienvenue */}
-      {showWelcomeOverlay && (
-        <WelcomeOverlay 
-          onClose={() => setShowWelcomeOverlay(false)}
-          autoHideTime={15000}
-        />
-      )}
+      {/* Nouvel overlay de bienvenue - AJOUTEZ CETTE SECTION ICI */}
+    {showWelcomeOverlay && (
+      <WelcomeOverlay 
+        onClose={() => setShowWelcomeOverlay(false)}
+        autoHideTime={15000} // 15 secondes avant disparition automatique
+      />
+    )}
       
       {/* Guide de swipe sur mobile */}
       {(isMobile || isTablet) && showMobileGuide && (
@@ -633,9 +846,24 @@ export default function CabinInterior() {
         </div>
       )}
       
-      {/* Contrôles visuels conditionnels pour les overlays */}
-      {(isMobile || isTablet) && !showAboutOverlay && !showPrestationOverlay 
-          && !showWelcomeOverlay && !showOrientationOverlay && (
+      {/* Contrôles de mouvement sur mobile */}
+      {(isMobile || isTablet) && (
+        <MobileControls
+          onMoveForward={handleMoveForward}
+          onMoveBackward={handleMoveBackward}
+        />
+      )}
+
+      {/* Contrôles de mouvement sur mobile - masqués quand un overlay est affiché */}
+      {(isMobile || isTablet) && !showAboutOverlay && !showPrestationOverlay && !showWelcomeOverlay && !showOrientationOverlay && (
+        <MobileControls
+          onMoveForward={handleMoveForward}
+          onMoveBackward={handleMoveBackward}
+        />
+      )}
+        
+      {/* Sélecteur de qualité pour les appareils mobiles */}
+      {(isMobile || isTablet) && (
         <div className="quality-toggle">
           <button 
             className={qualityLevel === 'low' ? 'active' : ''}
@@ -658,13 +886,13 @@ export default function CabinInterior() {
         </div>
       )}
 
-      {/* Overlay d'orientation sur mobile en mode portrait */}
-      {(isMobile || isTablet) && !isLandscape && showOrientationOverlay && (
+        {(isMobile || isTablet) && !isLandscape && showOrientationOverlay && (
         <UnifiedOrientationOverlay 
           onClose={() => setShowOrientationOverlay(false)}
           autoHideTime={10000}
         />
       )}
+
     </div>
   );
 }
