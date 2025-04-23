@@ -200,7 +200,7 @@ export default function useTouchControls({
     
     // IMPORTANT: Inverser la direction si l'option est activée
     if (swipeOptions.invertDirection) {
-      direction = -direction; // Inverser la direction (gauche→droite et droite→gauche)
+      direction = direction; // Inverser la direction (gauche→droite et droite→gauche)
     }
     
     // Stocker les informations d'inertie
