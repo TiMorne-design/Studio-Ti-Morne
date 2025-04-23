@@ -168,11 +168,6 @@ export default function useTouchControls({
       // Convertir en coordonnées normalisées (-1 à 1)
       const normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
       
-      // IMPORTANT: Inverser la direction en temps réel aussi pour correspondre à l'inertie
-      if (swipeOptions.invertDirection) {
-        normalizedX = -normalizedX;
-      }
-      
       // Créer un événement simulé avec le flag tactile
       const simulatedEvent = {
         clientX: window.innerWidth * (0.5 - normalizedX * 0.5), // Ajusté pour l'inversion
