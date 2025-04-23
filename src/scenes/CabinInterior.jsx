@@ -748,6 +748,10 @@ const initializeTouchControls = useCallback(() => {
 
 // Ensuite remplacez l'effet existant par:
 useEffect(() => {
+  if (isMobile || isTablet) {
+    const cleanup = initializeTouchControls();
+    return cleanup;
+  }
 }, [isMobile, isTablet, initializeTouchControls]);
   
       
