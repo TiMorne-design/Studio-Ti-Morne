@@ -1,4 +1,7 @@
-
+/**
+ * Version améliorée de useTouchControls.js
+ * Résout les problèmes avec les petits swipes rapides
+ */
 import { useCallback, useRef, useEffect } from 'react';
 import debugUtils from '../utils/debugUtils';
 
