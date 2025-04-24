@@ -856,12 +856,18 @@ useEffect(() => {
       )}
 
       {/* Contrôles de mouvement sur mobile - masqués quand un overlay est affiché */}
-      {(isMobile || isTablet) && !showAboutOverlay && !showPrestationOverlay && !showWelcomeOverlay && !showOrientationOverlay && (
-        <MobileControls
-          onMoveForward={handleMoveForward}
-          onMoveBackward={handleMoveBackward}
-        />
-      )}
+      {/* Contrôles de mouvement sur mobile - masqués quand un overlay est affiché */}
+{(isMobile || isTablet) && !(
+  showAboutOverlay || 
+  showPrestationOverlay || 
+  (typeof showWelcomeOverlay !== 'undefined' && showWelcomeOverlay) || 
+  showOrientationOverlay
+) && (
+  <MobileControls
+    onMoveForward={handleMoveForward}
+    onMoveBackward={handleMoveBackward}
+  />
+)}
         
       {/* Sélecteur de qualité pour les appareils mobiles */}
       {(isMobile || isTablet) && (
