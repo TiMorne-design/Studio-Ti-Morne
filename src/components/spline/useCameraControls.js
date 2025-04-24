@@ -346,11 +346,11 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
     // Permission spéciale pour les événements tactiles sur la terrasse
   const allowTouchOnTerrace = isTouchEvent;
 
-  // Détecter si c'est un événement spécial de type "delta swipe" venant de TouchControls
-  if (isTouchEvent && e.swipeDelta === true) {
-    // Appliquer directement le delta de rotation
+    // Traitement spécial pour les événements swipeDelta
+  if (e.swipeDelta === true) {
+    // Appliquer directement le delta à la rotation
     targetRotation.current.y += e.normalizedX;
-    return; // Important: sortir de la fonction ici pour éviter le traitement standard
+    return;
   }
   
   // Vérifier si on est sur la terrasse et si on doit ignorer l'événement

@@ -94,7 +94,8 @@ export default function useTouchControls({
       totalY: 0,
       velocityX: 0, // Stocker la vélocité directement
       lastTime: Date.now(), // Temps du dernier mouvement
-      touchStartTime: Date.now() // NOUVEAU: Pour calculer la durée totale du toucher
+      touchStartTime: Date.now(), 
+      mode : 'undecided' 
     };
     
     logger.log("Touch start détecté", touch.clientX, touch.clientY);
@@ -124,73 +125,89 @@ export default function useTouchControls({
     // Calculer les deltas depuis le dernier mouvement
     const deltaX = touch.clientX - state.lastX;
     const deltaY = touch.clientY - state.lastY;
+
+    // Calculer le delta total depuis le début
+  const totalDeltaX = touch.clientX - state.startX;
+  const totalDeltaY = touch.clientY - state.startY;
     
     // Mettre à jour les totaux
     state.totalX += deltaX;
     state.totalY += deltaY;
+
+    // Si le mode est encore indécis et que le mouvement dépasse un seuil,
+  // basculer en mode glissement
+  if (state.mode === 'undecided' && Math.abs(totalDeltaX) > 10) {
+    state.mode = 'swipe';
+    logger.log("Mode swipe activé", totalDeltaX);
+  }
     
-    // Calculer la vélocité (pixels par milliseconde)
-    const timeDelta = now - state.lastTime;
-    if (timeDelta > 0) {
-      // Mise à jour progressive de la vélocité avec lissage
-      const newVelocityX = deltaX / timeDelta;
-      // AMÉLIORÉ: Pondération plus forte sur la nouvelle vélocité pour les mouvements rapides
-      const weightNew = Math.min(0.5, timeDelta / 50); // 0.3 -> dynamique jusqu'à 0.5
-      state.velocityX = state.velocityX * (1 - weightNew) + newVelocityX * weightNew;
+    // Déterminer le type de mouvement si pas encore défini
+if (!state.moveType) {
+  const distX = Math.abs(totalDeltaX);
+  const distY = Math.abs(totalDeltaY);
+  
+  if (distX > threshold || distY > threshold) {
+    // Si le mouvement horizontal est dominant
+    if (distX > distY) {
+      state.moveType = 'horizontal';
+      state.moving = true;
+      logger.log("Mouvement horizontal détecté", distX, distY);
+    } else {
+      state.moveType = 'vertical';
+      logger.log("Mouvement vertical détecté", distX, distY);
     }
-    
-    // Déterminer le type de mouvement au besoin
-    if (!state.moveType) {
-      const distX = Math.abs(touch.clientX - state.startX);
-      const distY = Math.abs(touch.clientY - state.startY);
-      
-      if (distX > threshold || distY > threshold) {
-        // Si le mouvement horizontal est dominant
-        if (distX > distY) {
-          state.moveType = 'horizontal';
-          state.moving = true;
-          logger.log("Mouvement horizontal détecté", distX, distY);
-        } else {
-          state.moveType = 'vertical';
-          logger.log("Mouvement vertical détecté", distX, distY);
-        }
-      }
-    }
-    
-    // Mise à jour des valeurs pour le suivi
-    state.lastX = touch.clientX;
-    state.lastY = touch.clientY;
-    state.lastTime = now;
-    
-    // IMPORTANT: Envoyer les événements de mouvement pour la rotation en temps réel
-    // mais uniquement si c'est un mouvement horizontal
-    if (onMouseMove && (state.moveType === 'horizontal' || !state.moveType)) {
-      // Convertir en coordonnées normalisées (-1 à 1)
-      let normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
-      
-      // IMPORTANT: Inverser la direction en temps réel aussi pour correspondre à l'inertie
-      if (swipeOptions.invertDirection) {
-        normalizedX = -normalizedX;
-      }
-      
-      // Créer un événement simulé avec le flag tactile
-      const simulatedEvent = {
-        normalizedX: -deltaX * sensitivity, // Delta, pas position absolue
-        normalizedY: 0,
-        isTouchEvent: true,
-        type: 'touchmove',
-        swipeDelta: true // Nouveau flag pour identifier ces événements spéciaux
-      };
-      
-      // Envoyer l'événement directement
-      onMouseMove(simulatedEvent);
-      
-      // Bloquer la propagation mais seulement si c'est un mouvement horizontal confirmé
-      if (Math.abs(state.totalX) > swipeOptions.minSwipeDistance) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    }
+  }
+}
+
+// Si le mode est encore indécis et que le mouvement horizontal dépasse un seuil,
+// basculer en mode glissement
+if (state.mode === 'undecided' && state.moveType === 'horizontal' && Math.abs(totalDeltaX) > 10) {
+  state.mode = 'swipe';
+  logger.log("Mode swipe activé", totalDeltaX);
+}
+
+// Calculer la vélocité (pixels par milliseconde)
+const timeDelta = now - state.lastTime;
+if (timeDelta > 0) {
+  // Mise à jour de la vélocité avec pondération
+  const newVelocityX = deltaX / timeDelta;
+  const weightNew = Math.min(0.5, timeDelta / 50);
+  state.velocityX = state.velocityX * (1 - weightNew) + newVelocityX * weightNew;
+}
+
+// Mise à jour des valeurs pour le suivi
+state.lastX = touch.clientX;
+state.lastY = touch.clientY;
+state.lastTime = now;
+
+// IMPORTANT: Envoyer les événements de mouvement uniquement si nous sommes en mode swipe
+// ET si c'est un mouvement horizontal
+if (state.mode === 'swipe' && (state.moveType === 'horizontal' || !state.moveType)) {
+  // Sensibilité ajustable
+  const sensitivity = 0.002;
+  
+  // Créer un événement simulé avec le flag swipeDelta
+  const simulatedEvent = {
+    clientX: touch.clientX,
+    clientY: touch.clientY,
+    normalizedX: -deltaX * sensitivity, // Utiliser le delta pour la rotation
+    normalizedY: 0,
+    isTouchEvent: true,
+    type: 'touchmove',
+    swipeDelta: true // Marquer que c'est un événement basé sur delta
+  };
+  
+  // Envoyer l'événement au gestionnaire
+  if (onMouseMove) {
+    onMouseMove(simulatedEvent);
+  }
+  
+  // Bloquer la propagation pour les mouvements horizontaux confirmés
+  if (Math.abs(state.totalX) > swipeOptions.minSwipeDistance) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}
   }, [onMouseMove, threshold, swipeOptions.minSwipeDistance, swipeOptions.invertDirection]);
   
   /**
