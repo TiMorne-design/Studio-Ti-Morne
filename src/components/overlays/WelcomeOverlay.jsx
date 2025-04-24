@@ -67,6 +67,16 @@ const WelcomeOverlay = ({ onClose, autoHideTime = 15000, splineLoaded = false })
     }
   }, [visible, onClose, autoHideTime]);
 
+  useEffect(() => {
+    if (autoHideTime && visible) {
+      const timer = setTimeout(() => {
+        setVisible(false);
+        if (onClose) onClose();
+      }, autoHideTime);
+      return () => clearTimeout(timer);
+    }
+  }, [autoHideTime, visible, onClose]);
+  
   // Si non visible, ne rien afficher
   if (!visible) return null;
 
