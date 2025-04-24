@@ -1,9 +1,8 @@
 /**
- * Overlay de bienvenue amélioré
+ * Overlay de bienvenue
  * Affiche un message d'accueil et les instructions de navigation
- * Conçu pour se superposer à l'image de prévisualisation
  */
-import React, { useState, useEffect, useCallback, memo } from 'react';
+import React, { useState, useCallback, memo, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import useDeviceDetection from '../../hooks/useDeviceDetection';
 
@@ -11,13 +10,54 @@ import useDeviceDetection from '../../hooks/useDeviceDetection';
  * Composant d'overlay de bienvenue avec détection de l'appareil
  * Reste affiché jusqu'à ce que l'utilisateur clique pour fermer
  */
-const WelcomeOverlay = ({ onClose, autoHideTime = 0 }) => {
+const WelcomeOverlay = ({ onClose, autoHideTime = 15000, splineLoaded = false }) => {
   const [visible, setVisible] = useState(true);
   const { isMobile, isTablet } = useDeviceDetection();
+  const [loadingSpline, setLoadingSpline] = useState(!splineLoaded);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   
-  // Effet pour masquer automatiquement l'overlay après un délai si autoHideTime > 0
+  // Gestionnaire pour fermer l'overlay
+  const handleClose = useCallback(() => {
+    setVisible(false);
+    if (onClose) onClose();
+  }, [onClose]);
+  
+  // Simuler le chargement de Spline si pas encore chargé
   useEffect(() => {
-    if (autoHideTime > 0 && visible) {
+    // Si Spline est déjà chargé, ne pas montrer la barre de chargement
+    if (splineLoaded) {
+      setLoadingSpline(false);
+      return;
+    }
+    
+    // Simuler un chargement progressif
+    const interval = setInterval(() => {
+      setLoadingProgress(prev => {
+        const nextProgress = prev + Math.random() * 5; // Progression aléatoire
+        
+        // Si on approche de 100%, finaliser le chargement
+        if (nextProgress >= 95) {
+          clearInterval(interval);
+          
+          // Attendre un court moment puis marquer comme chargé
+          setTimeout(() => {
+            setLoadingProgress(100);
+            setLoadingSpline(false);
+          }, 500);
+          
+          return 95;
+        }
+        
+        return nextProgress;
+      });
+    }, 300);
+    
+    return () => clearInterval(interval);
+  }, [splineLoaded]);
+  
+  // Effet pour cacher automatiquement l'overlay après un délai
+  useEffect(() => {
+    if (visible && autoHideTime > 0) {
       const timer = setTimeout(() => {
         setVisible(false);
         if (onClose) onClose();
@@ -26,20 +66,7 @@ const WelcomeOverlay = ({ onClose, autoHideTime = 0 }) => {
       return () => clearTimeout(timer);
     }
   }, [visible, onClose, autoHideTime]);
-  
-  // Gestionnaire pour fermer l'overlay
-  const handleClose = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setVisible(false);
-    if (onClose) onClose();
-  }, [onClose]);
-  
-  // Empêcher la propagation des événements tactiles
-  const stopPropagation = useCallback((e) => {
-    e.stopPropagation();
-  }, []);
-  
+
   // Si non visible, ne rien afficher
   if (!visible) return null;
 
@@ -51,13 +78,13 @@ const WelcomeOverlay = ({ onClose, autoHideTime = 0 }) => {
       left: 0,
       width: '100%',
       height: '100%',
-      backgroundColor: 'rgba(0, 0, 0, 0.5)', // Fond semi-transparent 
+      backgroundColor: 'rgba(0, 0, 0, 0.35)', // Fond moins opaque
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      zIndex: 3000, // Z-index plus élevé pour être au-dessus de tout
-      backdropFilter: 'blur(3px)', // Flou pour un meilleur contraste
-      WebkitBackdropFilter: 'blur(3px)',
+      zIndex: 2000,
+      backdropFilter: 'blur(2px)', // Flou réduit
+      WebkitBackdropFilter: 'blur(2px)',
       animation: 'fadeIn 0.5s forwards'
     },
     container: {
@@ -71,9 +98,7 @@ const WelcomeOverlay = ({ onClose, autoHideTime = 0 }) => {
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      textAlign: 'center',
-      animation: 'scaleIn 0.5s forwards',
-      transform: 'scale(0.95)'
+      textAlign: 'center'
     },
     logo: {
       width: isMobile ? '150px' : '200px',
@@ -144,9 +169,34 @@ const WelcomeOverlay = ({ onClose, autoHideTime = 0 }) => {
       cursor: 'pointer',
       marginTop: '20px',
       boxShadow: '0 2px 5px rgba(0, 0, 0, 0.2)',
-      transition: 'background-color 0.2s ease, transform 0.2s ease',
+      transition: 'background-color 0.2s ease',
       textTransform: 'uppercase',
       letterSpacing: '1px'
+    },
+    loadingContainer: {
+      width: '100%',
+      marginTop: '15px',
+      display: loadingSpline ? 'block' : 'none'
+    },
+    loadingBar: {
+      width: '100%',
+      height: '4px',
+      backgroundColor: 'rgba(42, 157, 143, 0.1)',
+      borderRadius: '2px',
+      overflow: 'hidden',
+      marginBottom: '10px'
+    },
+    loadingFill: {
+      height: '100%',
+      width: `${loadingProgress}%`,
+      backgroundColor: '#2A9D8F',
+      transition: 'width 0.3s ease-out'
+    },
+    loadingText: {
+      fontSize: '14px',
+      color: '#2A9D8F',
+      textAlign: 'center',
+      opacity: 0.7
     }
   };
 
@@ -155,10 +205,6 @@ const WelcomeOverlay = ({ onClose, autoHideTime = 0 }) => {
     @keyframes fadeIn {
       from { opacity: 0; }
       to { opacity: 1; }
-    }
-    @keyframes scaleIn {
-      from { transform: scale(0.95); opacity: 0; }
-      to { transform: scale(1); opacity: 1; }
     }
   `;
 
@@ -197,7 +243,10 @@ const WelcomeOverlay = ({ onClose, autoHideTime = 0 }) => {
   const instructions = (isMobile || isTablet) ? mobileInstructions : desktopInstructions;
 
   return (
-    <div style={styles.overlay} onClick={stopPropagation}>
+    <div 
+      style={styles.overlay} 
+      onClick={handleClose}
+    >
       <style>{keyframes}</style>
       <div 
         style={styles.container} 
@@ -234,20 +283,29 @@ const WelcomeOverlay = ({ onClose, autoHideTime = 0 }) => {
           Data visualization, modélisation 3D, interfaces web innovantes — cliquez sur les différents boutons pour découvrir comment nous donnons vie à l'information par l'interaction.
         </p>
         
+        {/* Section de chargement conditionnelle */}
+        {loadingSpline && (
+          <div style={styles.loadingContainer}>
+            <div style={styles.loadingBar}>
+              <div style={{...styles.loadingFill, width: `${loadingProgress}%`}}></div>
+            </div>
+            <div style={styles.loadingText}>
+              Chargement de l'expérience... {Math.round(loadingProgress)}%
+            </div>
+          </div>
+        )}
+        
         <button 
-          style={styles.button}
+          style={{
+            ...styles.button,
+            opacity: loadingSpline ? 0.7 : 1,
+            cursor: loadingSpline ? 'wait' : 'pointer'
+          }}
           onClick={handleClose}
           onTouchStart={handleClose}
-          onMouseOver={(e) => {
-            e.currentTarget.style.backgroundColor = '#45b4a6';
-            e.currentTarget.style.transform = 'scale(1.03)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.backgroundColor = '#2A9D8F';
-            e.currentTarget.style.transform = 'scale(1)';
-          }}
+          disabled={loadingSpline}
         >
-          COMMENCER L'EXPÉRIENCE
+          {loadingSpline ? 'CHARGEMENT...' : 'COMMENCER L\'EXPÉRIENCE'}
         </button>
       </div>
     </div>
@@ -256,7 +314,8 @@ const WelcomeOverlay = ({ onClose, autoHideTime = 0 }) => {
 
 WelcomeOverlay.propTypes = {
   onClose: PropTypes.func,
-  autoHideTime: PropTypes.number
+  autoHideTime: PropTypes.number,
+  splineLoaded: PropTypes.bool
 };
 
 export default memo(WelcomeOverlay);

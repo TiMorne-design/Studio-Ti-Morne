@@ -1,58 +1,165 @@
 /**
- * Page d'accueil avec animation et transition
- * Affiche une image de fond, du texte qui apparaît progressivement et un bouton d'entrée
+ * Page d'accueil avec transitions fluides et préchargement optimisé
  */
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import useDeviceDetection from '../hooks/useDeviceDetection';
+import WelcomeOverlay from '../components/overlays/WelcomeOverlay';
 
 /**
- * Composant de page d'accueil avec animation de texte et transition
- * @param {Object} props - Propriétés du composant
- * @param {Function} props.onEnterClick - Fonction appelée lors du clic sur le bouton "Entrer"
- * @param {String} props.backgroundImage - URL de l'image d'arrière-plan
+ * Composant de page d'accueil avec transitions fluides optimisées
  */
 const HomePage = ({ 
-  onEnterClick,
-  backgroundImage = './images/home-background.png', // Image par défaut
-  videoSrc = './videos/ENTRANCE_TM.mp4' // Vidéo de transition par défaut
+  backgroundImage = './images/home-background.png',
+  videoSrc = './videos/ENTRANCE_TM.mp4',
+  previewBackgroundImage = './images/scene-preview.png'
 }) => {
   const navigate = useNavigate();
   const { isMobile } = useDeviceDetection();
   const [textVisible, setTextVisible] = useState(false);
   const [buttonVisible, setButtonVisible] = useState(false);
-  const videoRef = useRef(null);
+  const [pageVisible, setPageVisible] = useState(false);
   const [isPreloading, setIsPreloading] = useState(true);
   const [preloadProgress, setPreloadProgress] = useState(0);
   
-  // Référence pour la vidéo
+  // États pour la gestion des transitions
+  const [transitionPhase, setTransitionPhase] = useState('home'); // 'home', 'video', 'preview', 'experience'
+  const [homeExiting, setHomeExiting] = useState(false);
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(false);
+  const [splineLoaded, setSplineLoaded] = useState(false);
+  
+  // Références pour les éléments DOM
+  const videoRef = useRef(null);
+  const homeContainerRef = useRef(null);
+  
+  // Gestionnaire pour le clic sur le bouton d'entrée
   const handleEnterClick = () => {
-    if (onEnterClick) {
-      onEnterClick();y
+    if (videoRef.current) {
+      // Commencer à animer la sortie de la page d'accueil
+      setHomeExiting(true);
+      
+      // IMPORTANT: Préparer la vidéo avant de débuter l'animation d'opacité
+      if (videoRef.current.readyState >= 3) {
+        // La vidéo est déjà prête, on peut la jouer immédiatement
+        // mais on attend d'abord que l'animation de sortie de home commence
+        videoRef.current.currentTime = 0; // S'assurer de commencer du début
+        
+        setTimeout(() => {
+          setTransitionPhase('video');
+          // Rendre la vidéo visible avant de la jouer pour éviter le flash
+          setVideoPlaying(true);
+          
+          // Laisser un court délai pour que l'opacité change
+          setTimeout(() => {
+            try {
+              const playPromise = videoRef.current.play();
+              if (playPromise !== undefined) {
+                playPromise.catch(err => {
+                  console.error('Autoplay prevented:', err);
+                  // En cas d'échec, passer directement à la phase d'aperçu
+                  handleVideoEnd();
+                });
+              }
+            } catch (err) {
+              console.error('Error playing video:', err);
+              // En cas d'erreur, passer à la phase d'aperçu
+              handleVideoEnd();
+            }
+          }, 50);
+        }, 200);
+      } else {
+        // La vidéo n'est pas encore prête, attendre qu'elle le soit
+        const checkReadyState = () => {
+          if (videoRef.current.readyState >= 3) {
+            setTransitionPhase('video');
+            setVideoPlaying(true);
+            
+            setTimeout(() => {
+              try {
+                videoRef.current.play();
+              } catch (err) {
+                console.error('Error playing video:', err);
+                handleVideoEnd();
+              }
+            }, 50);
+          } else {
+            // Vérifier à nouveau après un court délai
+            setTimeout(checkReadyState, 100);
+          }
+        };
+        
+        setTimeout(checkReadyState, 300);
+      }
+    } else {
+      // Fallback si la vidéo n'est pas disponible
+      handleVideoEnd();
     }
   };
 
-  // Effet pour animer l'apparition du texte et du bouton
+  // Gestionnaire pour la fin de la vidéo de transition
+  const handleVideoEnd = () => {
+    // Commencer à afficher l'aperçu avec un fondu enchaîné
+    setTransitionPhase('preview');
+    
+    // Afficher le WelcomeOverlay après un court délai
+    setTimeout(() => {
+      setShowWelcomeOverlay(true);
+    }, 300);
+    
+    // Simuler le préchargement de Spline (à remplacer par la vraie logique)
+    if (!splineLoaded) {
+      // Simuler un chargement en arrière-plan
+      const fakeLoading = setTimeout(() => {
+        setSplineLoaded(true);
+      }, 3000);
+      
+      return () => clearTimeout(fakeLoading);
+    }
+  };
+  
+  // Gestionnaire pour la fermeture du WelcomeOverlay
+  const handleWelcomeClose = () => {
+    setShowWelcomeOverlay(false);
+    
+    // Petit délai avant de naviguer pour laisser le temps à l'overlay de disparaître
+    setTimeout(() => {
+      setTransitionPhase('experience');
+      navigate('/experience');
+      
+      // Sauvegarder l'état dans localStorage
+      try {
+        localStorage.setItem('experienceStarted', 'true');
+      } catch (err) {
+        console.error('Erreur lors de l\'enregistrement de l\'état:', err);
+      }
+    }, 300);
+  };
+
+  // Effet pour l'animation d'entrée et le préchargement
   useEffect(() => {
-    // Afficher le texte après 2 secondes
+    // Animation d'entrée
+    const pageTimer = setTimeout(() => {
+      setPageVisible(true);
+    }, 100);
+
     const textTimer = setTimeout(() => {
       setTextVisible(true);
-    }, 2000);
+    }, 1500);
     
-    // Afficher le bouton après 3.5 secondes
     const buttonTimer = setTimeout(() => {
       setButtonVisible(true);
-    }, 3500);
+    }, 2500);
     
-    // Précharger les ressources importantes
+    // Précharger les ressources
     const preloadResources = async () => {
       try {
         // Liste des ressources à précharger
         const resourcesToPreload = [
-          // Ajouter ici les chemins des images, vidéos ou autres ressources
+          backgroundImage,
           videoSrc,
-          '/images/loading-icon.png', // Exemple
+          previewBackgroundImage
         ];
         
         let loaded = 0;
@@ -60,21 +167,40 @@ const HomePage = ({
         for (const resource of resourcesToPreload) {
           await new Promise((resolve) => {
             if (resource.endsWith('.mp4') || resource.endsWith('.webm')) {
-              // Préchargement de vidéo
-              const video = document.createElement('video');
-              video.preload = 'auto';
-              video.src = resource;
-              video.onloadeddata = () => {
+              // Utiliser directement la référence vidéo
+              if (!videoRef.current) {
+                videoRef.current = document.createElement('video');
+                videoRef.current.muted = true;
+                videoRef.current.playsInline = true;
+                videoRef.current.preload = 'auto';
+                videoRef.current.src = resource;
+              }
+              
+              const handleLoaded = () => {
                 loaded++;
                 setPreloadProgress(Math.floor((loaded / resourcesToPreload.length) * 100));
+                videoRef.current.removeEventListener('loadeddata', handleLoaded);
                 resolve();
               };
-              video.onerror = () => {
+              
+              const handleError = () => {
                 loaded++;
                 setPreloadProgress(Math.floor((loaded / resourcesToPreload.length) * 100));
                 console.error(`Erreur lors du préchargement de ${resource}`);
+                videoRef.current.removeEventListener('error', handleError);
                 resolve();
               };
+              
+              // Si la vidéo est déjà chargée
+              if (videoRef.current.readyState >= 3) {
+                loaded++;
+                setPreloadProgress(Math.floor((loaded / resourcesToPreload.length) * 100));
+                resolve();
+                return;
+              }
+              
+              videoRef.current.addEventListener('loadeddata', handleLoaded);
+              videoRef.current.addEventListener('error', handleError);
             } else {
               // Préchargement d'image
               const img = new Image();
@@ -105,12 +231,13 @@ const HomePage = ({
     // Lancer le préchargement
     preloadResources();
     
-    // Nettoyage des timers
+    // Nettoyage
     return () => {
+      clearTimeout(pageTimer);
       clearTimeout(textTimer);
       clearTimeout(buttonTimer);
     };
-  }, [videoSrc]);
+  }, [backgroundImage, videoSrc, previewBackgroundImage]);
 
   // Styles pour l'interface
   const styles = {
@@ -126,7 +253,11 @@ const HomePage = ({
       alignItems: 'center',
       backgroundColor: '#000',
       overflow: 'hidden',
-      zIndex: 1000
+      zIndex: 1000,
+      opacity: pageVisible ? 1 : 0,
+      transition: homeExiting ? 'opacity 0.6s ease-out' : 'opacity 1.2s ease-in',
+      ...(homeExiting && { opacity: 0 }),
+      pointerEvents: homeExiting ? 'none' : 'auto'
     },
     background: {
       position: 'absolute',
@@ -135,7 +266,7 @@ const HomePage = ({
       width: '100%',
       height: '100%',
       objectFit: 'cover',
-      opacity: 0.8,
+      opacity: pageVisible ? 0.8 : 0,
       animation: 'fadeIn 1.5s ease-out forwards'
     },
     contentBox: {
@@ -200,10 +331,9 @@ const HomePage = ({
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      padding: '10px',
-      opacity: isPreloading ? 1 : 0,
-      transition: 'opacity 0.5s ease-out',
-      zIndex: 101
+      opacity: isPreloading ? 0.7 : 0,
+      transition: 'opacity 0.5s ease',
+      pointerEvents: 'none'
     },
     progressBar: {
       width: '200px',
@@ -211,7 +341,7 @@ const HomePage = ({
       backgroundColor: 'rgba(255, 255, 255, 0.2)',
       borderRadius: '2px',
       overflow: 'hidden',
-      marginTop: '8px'
+      marginBottom: '8px'
     },
     progressFill: {
       height: '100%',
@@ -220,9 +350,43 @@ const HomePage = ({
       transition: 'width 0.3s ease-out'
     },
     progressText: {
-      color: 'rgba(255, 255, 255, 0.8)',
-      fontSize: '12px',
-      marginTop: '5px'
+      color: 'rgba(255, 255, 255, 0.7)',
+      fontSize: '12px'
+    },
+    videoContainer: {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      zIndex: 2000, // Toujours au-dessus de la page d'accueil
+      opacity: videoPlaying ? 1 : 0,
+      transition: 'opacity 0.5s ease-in',
+      backgroundColor: '#000',
+      pointerEvents: transitionPhase === 'video' ? 'auto' : 'none'
+    },
+    video: {
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover'
+    },
+    previewContainer: {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      zIndex: 3000, // Au-dessus de tout
+      opacity: transitionPhase === 'preview' ? 1 : 0,
+      transition: 'opacity 0.8s ease-in',
+      backgroundColor: '#000',
+      pointerEvents: transitionPhase === 'preview' ? 'auto' : 'none'
+    },
+    previewBackground: {
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover',
+      opacity: 0.7 // Légère opacité pour que le WelcomeOverlay soit plus lisible
     }
   };
   
@@ -232,48 +396,111 @@ const HomePage = ({
       from { opacity: 0; }
       to { opacity: 0.8; }
     }
+
+    @keyframes scaleIn {
+      from { transform: scale(1.05); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
   `;
 
   return (
-    <div style={styles.container}>
+    <>
       <style>{keyframes}</style>
       
-      {/* Image d'arrière-plan */}
-      <img 
-        src={backgroundImage} 
-        alt="Fond" 
-        style={styles.background}
-        onError={(e) => {
-          console.error("Impossible de charger l'image d'arrière-plan");
-          e.target.style.display = 'none';
-        }}
-      />
-      
-      {/* Contenu principal */}
-      <div style={styles.contentBox}>
-        <h1 style={styles.title}>STUDIO TI MORNE</h1>
-        <p style={styles.subtitle}>
-          Bienvenue dans notre univers créatif où l'innovation digitale rencontre l'expérience immersive. 
-          Un lieu unique où technologie et imagination fusionnent pour créer des expériences mémorables.
-        </p>
-        <button 
-          style={styles.button}
-          onClick={handleEnterClick}
-          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#45b4a6'}
-          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2A9D8F'}
-          disabled={isPreloading}
-        >
-          Entrer
-        </button>
+      {/* Page d'accueil */}
+      <div ref={homeContainerRef} style={styles.container}>
+        {/* Image d'arrière-plan */}
+        <img 
+          src={backgroundImage} 
+          alt="Fond" 
+          style={{
+            ...styles.background,
+            transform: pageVisible ? 'scale(1)' : 'scale(1.05)',
+            transition: 'opacity 2s ease-out, transform 2.5s ease-out',
+          }}
+          onError={(e) => {
+            console.error("Impossible de charger l'image d'arrière-plan");
+            e.target.style.display = 'none';
+          }}
+        />
+        
+        {/* Contenu principal */}
+        <div style={styles.contentBox}>
+          <h1 style={styles.title}>STUDIO TI MORNE</h1>
+          <p style={styles.subtitle}>
+            Bienvenue dans notre univers créatif où l'innovation digitale rencontre l'expérience immersive. 
+            Un lieu unique où technologie et imagination fusionnent pour créer des expériences mémorables.
+          </p>
+          <button 
+            style={styles.button}
+            onClick={handleEnterClick}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#45b4a6'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2A9D8F'}
+            disabled={isPreloading}
+          >
+            Entrer
+          </button>
+        </div>
+        
+        {/* Indicateur de préchargement */}
+        {isPreloading && (
+          <div style={styles.preloader}>
+            <div style={styles.progressBar}>
+              <div style={{
+                ...styles.progressFill,
+                width: `${preloadProgress}%`
+              }}></div>
+            </div>
+            <div style={styles.progressText}>
+              Chargement {preloadProgress}%
+            </div>
+          </div>
+        )}
       </div>
-     </div>
+      
+      {/* Conteneur vidéo - Toujours présent mais avec opacité 0 quand inactif */}
+      <div style={styles.videoContainer}>
+        <video 
+          ref={videoRef}
+          src={videoSrc}
+          preload="auto"
+          muted
+          playsInline
+          style={styles.video}
+          onEnded={handleVideoEnd}
+        />
+      </div>
+      
+      {/* Conteneur de prévisualisation avec WelcomeOverlay - Toujours présent mais avec opacité 0 quand inactif */}
+      <div style={styles.previewContainer}>
+        {/* Image de prévisualisation */}
+        <img
+          src={previewBackgroundImage}
+          alt="Aperçu"
+          style={styles.previewBackground}
+          onError={(e) => {
+            console.error("Impossible de charger l'image de prévisualisation");
+            e.target.style.display = 'none';
+          }}
+        />
+        
+        {/* WelcomeOverlay uniquement quand nécessaire */}
+        {showWelcomeOverlay && (
+          <WelcomeOverlay 
+            onClose={handleWelcomeClose} 
+            // Ne pas afficher la barre de chargement si Spline est déjà chargé
+            splineLoaded={splineLoaded}
+          />
+        )}
+      </div>
+    </>
   );
 };
 
 HomePage.propTypes = {
-  onEnterClick: PropTypes.func,
   backgroundImage: PropTypes.string,
-  videoSrc: PropTypes.string
+  videoSrc: PropTypes.string,
+  previewBackgroundImage: PropTypes.string
 };
 
 export default HomePage;
