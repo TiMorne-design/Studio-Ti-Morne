@@ -1,53 +1,93 @@
-/**
- * Composant principal de l'application
- * Configure les routes et le layout global
- */
-import { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import CabinInterior from './scenes/CabinInterior';
-import Contact from './scenes/Contact';
+// App.jsx - Version simplifiée
+import { useState, useEffect, lazy, Suspense } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import LoadingScreen from './components/ui/LoadingScreen';
+import EntryExperience from './components/EntryExperience';
 import './App.css';
 import './styles/mobile.css';
 
-/**
- * Composant principal de l'application
- */
+// Chargement paresseux des composants lourds
+const Contact = lazy(() => import('./scenes/Contact'));
+
 function App() {
-  // État de chargement
-  const [isLoading, setIsLoading] = useState(true);
+  // État de chargement initial
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  // État pour suivre si l'utilisateur a complété l'expérience d'entrée
+  const [experienceStarted, setExperienceStarted] = useState(false);
   
-  // Simuler un temps de chargement pour assurer que tous les assets sont prêts
+  // Simuler un temps de chargement minimal pour l'interface utilisateur initiale
   useEffect(() => {
     const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 2000);
+      setIsInitialLoading(false);
+    }, 1000);
     
     return () => clearTimeout(timer);
   }, []);
   
-  // Afficher une page de chargement pendant le chargement des assets
-  if (isLoading) {
-    return (
-      <div className="loading-screen">
-        <div className="loading-content">
-          <h1>Chargement...</h1>
-          <div className="loading-bar">
-            <div className="loading-progress"></div>
-          </div>
-        </div>
-      </div>
-    );
+  // Gestionnaire pour marquer l'expérience comme démarrée
+  const handleExperienceComplete = () => {
+    setExperienceStarted(true);
+    // Stocker dans localStorage pour que l'utilisateur n'ait pas à répéter l'expérience à chaque visite
+    try {
+      localStorage.setItem('experienceStarted', 'true');
+    } catch (err) {
+      console.error('Erreur lors de l\'enregistrement de l\'état:', err);
+    }
+  };
+  
+  // Vérifier si l'utilisateur a déjà vu l'expérience d'entrée
+  useEffect(() => {
+    try {
+      const hasStartedExperience = localStorage.getItem('experienceStarted') === 'true';
+      if (hasStartedExperience) {
+        setExperienceStarted(true);
+      }
+    } catch (err) {
+      console.error('Erreur lors de la lecture de l\'état:', err);
+    }
+  }, []);
+  
+  // Pendant le chargement initial, afficher l'écran de chargement
+  if (isInitialLoading) {
+    return <LoadingScreen />;
   }
   
   return (
     <Router>
       <div className="app-container">
-        <Routes>
-          <Route path="/" element={<CabinInterior />} />
-          <Route path="/terrasse" element={<div>Page Terrasse (à implémenter)</div>} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="*" element={<div>404 - Page non trouvée</div>} />
-        </Routes>
+        <Suspense fallback={<LoadingScreen message="Chargement..." />}>
+          <Routes>
+            {/* Route principale avec expérience d'entrée ou redirection */}
+            <Route 
+              path="/" 
+              element={
+                experienceStarted ? (
+                  <Navigate to="/experience" replace />
+                ) : (
+                  <EntryExperience
+                    homeBackgroundImage="./images/home-background.jpg"
+                    transitionVideo="./videos/transition.mp4"
+                    onExperienceComplete={handleExperienceComplete}
+                  />
+                )
+              } 
+            />
+            
+            {/* Route de l'expérience principale */}
+            <Route 
+              path="/experience" 
+              element={
+                <Suspense fallback={<LoadingScreen message="Chargement de l'expérience..." />}>
+                  <EntryExperience currentStage="experience" />
+                </Suspense>
+              } 
+            />
+            
+            {/* Autres routes */}
+            <Route path="/contact" element={<Contact />} />
+            <Route path="*" element={<div>404 - Page non trouvée</div>} />
+          </Routes>
+        </Suspense>
       </div>
     </Router>
   );
