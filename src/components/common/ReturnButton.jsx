@@ -9,7 +9,7 @@ import { controlStyles } from '../../constants/styles';
 /**
  * Bouton de retour à la position précédente
  */
-const ReturnButton = ({ onClick, label = 'RETOUR POSITION', icon = '←', style = {} }) => {
+const ReturnButton = ({ onClick, label = 'RETOUR', icon = '←', style = {} }) => {
   // Fonction qui gère à la fois les clics et les touchers
   const handleInteraction = (e) => {
     // Empêcher la propagation pour éviter les conflits avec d'autres gestionnaires
