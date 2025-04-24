@@ -147,7 +147,7 @@ const HomePage = ({
       justifyContent: 'center',
       alignItems: 'center',
       padding: isMobile ? '20px' : '40px',
-      zIndex: 40,
+      zIndex: 100,
       textAlign: 'center',
       maxWidth: '800px',
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -269,17 +269,7 @@ const HomePage = ({
           Entrer
         </button>
       </div>
-      
-      {/* Préchargeur */}
-      <div style={styles.preloader}>
-        <div style={styles.progressBar}>
-          <div style={styles.progressFill}></div>
-        </div>
-        <div style={styles.progressText}>
-          {isPreloading ? `Chargement... ${preloadProgress}%` : 'Prêt'}
-        </div>
-      </div>
-    </div>
+     </div>
   );
 };
 

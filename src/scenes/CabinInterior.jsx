@@ -62,6 +62,7 @@ export default function CabinInterior() {
   const [activeButtonId, setActiveButtonId] = useState(null);
   const [showMobileGuide, setShowMobileGuide] = useState(true);
   const [lastCameraPosition, setLastCameraPosition] = useState(null);
+  const [isSplineLoading, setIsSplineLoading] = useState(true);
   
   // États pour les overlays
   const [showAboutOverlay, setShowAboutOverlay] = useState(false);
@@ -69,7 +70,6 @@ export default function CabinInterior() {
   const [prestationContent, setPrestationContent] = useState(null);
   const [prestationTitle, setPrestationTitle] = useState('');
   const [showOrientationOverlay, setShowOrientationOverlay] = useState(true);
-  const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(true);
 
   // État pour la qualité visuelle
   const [qualityLevel, setQualityLevel] = useState(
@@ -216,6 +216,16 @@ export default function CabinInterior() {
       }
     };
   }, [checkAndTriggerDoor]);
+
+  // Ajoutez cet effet après les autres useEffect
+useEffect(() => {
+  // Afficher l'écran de chargement pendant 5 secondes
+  const timer = setTimeout(() => {
+    setIsSplineLoading(false);
+  }, 5000);
+  
+  return () => clearTimeout(timer);
+}, []);
 
   /**
    * Gestion du défilement pour avancer/reculer
@@ -826,14 +836,7 @@ useEffect(() => {
         />
       )}
 
-      {/* Nouvel overlay de bienvenue - AJOUTEZ CETTE SECTION ICI */}
-    {showWelcomeOverlay && (
-      <WelcomeOverlay 
-        onClose={() => setShowWelcomeOverlay(false)}
-        autoHideTime={15000} // 15 secondes avant disparition automatique
-      />
-    )}
-      
+        
       {/* Guide de swipe sur mobile */}
       {(isMobile || isTablet) && showMobileGuide && (
         <div className="mobile-guide">
@@ -890,6 +893,63 @@ useEffect(() => {
           autoHideTime={10000}
         />
       )}
+
+      {/* Écran de chargement personnalisé */}
+{isSplineLoading && (
+  <div style={{
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    backgroundImage: `url('./images/scene-preview.png')`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1500 // Au-dessus de tout sauf des overlays
+  }}>
+    <div style={{
+      position: 'absolute',
+      bottom: '50px',
+      width: '300px',
+      textAlign: 'center'
+    }}>
+      <p style={{
+        color: 'white',
+        fontSize: '16px',
+        marginBottom: '15px',
+        textShadow: '0 1px 3px rgba(0,0,0,0.7)'
+      }}>
+        Chargement de la scène 3D...
+      </p>
+      <div style={{
+        width: '100%',
+        height: '4px',
+        backgroundColor: 'rgba(255,255,255,0.3)',
+        borderRadius: '2px',
+        overflow: 'hidden'
+      }}>
+        <div style={{
+          height: '100%',
+          width: '30%',
+          backgroundColor: '#2A9D8F',
+          borderRadius: '2px',
+          animation: 'loading-progress 1.5s infinite ease-in-out'
+        }}/>
+      </div>
+    </div>
+    <style>{`
+      @keyframes loading-progress {
+        0% { width: 0%; margin-left: 0; }
+        50% { width: 70%; margin-left: 0; }
+        100% { width: 30%; margin-left: 70%; }
+      }
+    `}</style>
+  </div>
+)}
 
     </div>
   );

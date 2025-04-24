@@ -1,23 +1,24 @@
 /**
  * Composant de transition vidéo amélioré
  * Gère la lecture d'une vidéo de transition entre la page d'accueil et la scène principale
- * Ajoute une image de prévisualisation avec instructions après la vidéo
+ * Intègre le WelcomeOverlay au-dessus de l'image de prévisualisation
  */
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
+import WelcomeOverlay from '../overlays/WelcomeOverlay';
 
 /**
- * Composant qui affiche une vidéo plein écran avec transition automatique vers une autre route
- * Ajoute une phase intermédiaire avec image de prévisualisation et instructions
+ * Composant qui affiche une vidéo plein écran avec transition et overlay de bienvenue
  */
 const VideoTransition = ({ 
   videoSrc = '/videos/ENTRANCE_TM.mp4',
   previewImageSrc = '/images/scene-preview.png', // Image de prévisualisation (screenshot de la scène)
   targetRoute = '/experience',
-  autoSkip = true,
+  autoSkip = false, // Désactivé par défaut maintenant
   onTransitionComplete = null,
-  backgroundColor = '#000'
+  backgroundColor = '#000',
+  onSplineLoadProgress = null // Nouveau: callback pour le progrès de chargement
 }) => {
   const navigate = useNavigate();
   const videoRef = useRef(null);
@@ -26,8 +27,11 @@ const VideoTransition = ({
   const [error, setError] = useState(null);
   const [progress, setProgress] = useState(0);
   
-  // Nouvel état pour suivre les phases de transition
+  // État pour suivre les phases de transition
   const [transitionPhase, setTransitionPhase] = useState('video'); // 'video', 'preview', 'complete'
+  
+  // État pour contrôler l'affichage du WelcomeOverlay
+  const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(false);
   
   // Effet pour gérer le chargement et la lecture de la vidéo
   useEffect(() => {
@@ -55,16 +59,12 @@ const VideoTransition = ({
     };
     
     const handleEnded = () => {
-      // Passer à la phase de prévisualisation au lieu de naviguer immédiatement
+      // Passer à la phase de prévisualisation et activer le WelcomeOverlay
       setTransitionPhase('preview');
+      setShowWelcomeOverlay(true);
       
-      // Si nous devons passer automatiquement à l'expérience après un délai
-      if (autoSkip) {
-        // Un délai plus long pour que l'utilisateur puisse lire les instructions
-        setTimeout(() => {
-          completeTransition();
-        }, 5000); // 5 secondes de délai pour lire les instructions
-      }
+      // Le passage à l'expérience se fera via l'overlay de bienvenue
+      // On ne met plus de timeout automatique ici
     };
     
     const handleError = (err) => {
@@ -109,6 +109,12 @@ const VideoTransition = ({
     }
   };
   
+  // Gestionnaire pour la fermeture du WelcomeOverlay
+  const handleWelcomeClose = () => {
+    setShowWelcomeOverlay(false);
+    completeTransition();
+  };
+  
   // Fonction pour commencer la lecture si elle a été bloquée
   const handleVideoClick = () => {
     const videoElement = videoRef.current;
@@ -129,7 +135,13 @@ const VideoTransition = ({
   
   // Fonction pour passer la vidéo
   const handleSkip = () => {
-    completeTransition();
+    if (transitionPhase === 'video') {
+      // Passer directement à la phase de prévisualisation avec overlay
+      setTransitionPhase('preview');
+      setShowWelcomeOverlay(true);
+    } else {
+      completeTransition();
+    }
   };
 
   // Styles pour l'interface
@@ -176,20 +188,7 @@ const VideoTransition = ({
       objectFit: 'cover',
       opacity: 0.8 // Un peu d'opacité pour que les instructions soient plus lisibles
     },
-    loadingOverlay: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%',
-      backgroundColor: 'rgba(0, 0, 0, 0.7)',
-      display: isLoading ? 'flex' : 'none',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      color: 'white',
-      zIndex: 10
-    },
+    
     loadingText: {
       fontSize: '1.2rem',
       marginBottom: '20px'
@@ -226,38 +225,7 @@ const VideoTransition = ({
       transition: 'width 0.1s linear',
       zIndex: 15
     },
-    skipButton: {
-      position: 'absolute',
-      bottom: '20px',
-      right: '20px',
-      backgroundColor: 'rgba(42, 157, 143, 0.7)',
-      color: 'white',
-      border: 'none',
-      borderRadius: '5px',
-      padding: '8px 15px',
-      cursor: 'pointer',
-      zIndex: 25,
-      fontSize: '14px',
-      opacity: transitionPhase !== 'complete' ? 1 : 0,
-      transition: 'opacity 0.3s ease-in'
-    },
-    continueButton: {
-      position: 'absolute',
-      bottom: '50px',
-      left: '50%',
-      transform: 'translateX(-50%)',
-      backgroundColor: '#2A9D8F',
-      color: 'white',
-      border: 'none',
-      borderRadius: '5px',
-      padding: '12px 25px',
-      cursor: 'pointer',
-      zIndex: 25,
-      fontSize: '16px',
-      fontWeight: 'bold',
-      boxShadow: '0 4px 10px rgba(0, 0, 0, 0.3)',
-      display: transitionPhase === 'preview' ? 'block' : 'none'
-    }
+    
   };
   
   // Styles pour les animations
@@ -300,28 +268,22 @@ const VideoTransition = ({
               e.target.style.display = 'none';
             }}
           />
-          
-                    
-          {/* Bouton pour continuer immédiatement */}
-          <button
-            style={styles.continueButton}
-            onClick={completeTransition}
-          >
-            Entrer dans l'expérience
-          </button>
         </div>
+        
+        {/* WelcomeOverlay au-dessus de la prévisualisation */}
+        {transitionPhase === 'preview' && showWelcomeOverlay && (
+          <WelcomeOverlay 
+            onClose={handleWelcomeClose}
+            autoHideTime={0} // Désactiver la fermeture automatique
+          />
+        )}
         
         {/* Barre de progression */}
         {transitionPhase === 'video' && (
           <div style={styles.progressBar}></div>
         )}
         
-        {/* Overlay de chargement */}
-        <div style={styles.loadingOverlay}>
-          <div style={styles.loadingText}>Chargement de la transition...</div>
-          <div style={styles.spinner}></div>
-        </div>
-        
+               
         {/* Message d'erreur */}
         {error && (
           <div style={styles.errorMessage}>
@@ -329,16 +291,7 @@ const VideoTransition = ({
           </div>
         )}
         
-        {/* Bouton pour passer la vidéo */}
-        <button 
-          style={{
-            ...styles.skipButton,
-            display: transitionPhase === 'video' ? 'block' : 'none'
-          }} 
-          onClick={handleSkip}
-        >
-          Passer
-        </button>
+        
       </div>
     </div>
   );
@@ -350,7 +303,8 @@ VideoTransition.propTypes = {
   targetRoute: PropTypes.string,
   autoSkip: PropTypes.bool,
   onTransitionComplete: PropTypes.func,
-  backgroundColor: PropTypes.string
+  backgroundColor: PropTypes.string,
+  onSplineLoadProgress: PropTypes.func // Nouveau prop
 };
 
 export default VideoTransition;

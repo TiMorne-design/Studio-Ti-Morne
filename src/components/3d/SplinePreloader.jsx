@@ -1,6 +1,7 @@
 /**
- * Préchargeur de scènes Spline
+ * Préchargeur de scènes Spline amélioré
  * Permet de précharger des scènes Spline en arrière-plan avant de les afficher
+ * Optimisé pour fonctionner avec la transition d'entrée
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
@@ -136,16 +137,15 @@ const SplinePreloader = ({
     }
   }, [loadStatus, progressValue, onLoadProgress]);
   
-  // Rendu du placeholder pendant le chargement
-  return (
-    <>
-      {loadStatus !== 'loaded' && renderPlaceholder ? (
-        typeof renderPlaceholder === 'function' ? 
-          renderPlaceholder(progressValue, loadStatus) : 
-          renderPlaceholder
-      ) : null}
-    </>
-  );
+  // Rendu du placeholder pendant le chargement si fourni
+  if (loadStatus !== 'loaded' && renderPlaceholder) {
+    return typeof renderPlaceholder === 'function' ? 
+      renderPlaceholder(progressValue, loadStatus) : 
+      renderPlaceholder;
+  }
+  
+  // Sinon, ne rien afficher - juste précharger la scène en arrière-plan
+  return null;
 };
 
 SplinePreloader.propTypes = {

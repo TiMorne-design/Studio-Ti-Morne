@@ -1,8 +1,9 @@
 /**
- * Overlay de bienvenue
+ * Overlay de bienvenue amélioré
  * Affiche un message d'accueil et les instructions de navigation
+ * Conçu pour se superposer à l'image de prévisualisation
  */
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import PropTypes from 'prop-types';
 import useDeviceDetection from '../../hooks/useDeviceDetection';
 
@@ -10,12 +11,26 @@ import useDeviceDetection from '../../hooks/useDeviceDetection';
  * Composant d'overlay de bienvenue avec détection de l'appareil
  * Reste affiché jusqu'à ce que l'utilisateur clique pour fermer
  */
-const WelcomeOverlay = ({ onClose }) => {
+const WelcomeOverlay = ({ onClose, autoHideTime = 0 }) => {
   const [visible, setVisible] = useState(true);
   const { isMobile, isTablet } = useDeviceDetection();
   
+  // Effet pour masquer automatiquement l'overlay après un délai si autoHideTime > 0
+  useEffect(() => {
+    if (autoHideTime > 0 && visible) {
+      const timer = setTimeout(() => {
+        setVisible(false);
+        if (onClose) onClose();
+      }, autoHideTime);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [visible, onClose, autoHideTime]);
+  
   // Gestionnaire pour fermer l'overlay
-  const handleClose = useCallback(() => {
+  const handleClose = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
     setVisible(false);
     if (onClose) onClose();
   }, [onClose]);
@@ -36,13 +51,13 @@ const WelcomeOverlay = ({ onClose }) => {
       left: 0,
       width: '100%',
       height: '100%',
-      backgroundColor: 'rgba(0, 0, 0, 0.35)', // Fond moins opaque
+      backgroundColor: 'rgba(0, 0, 0, 0.5)', // Fond semi-transparent 
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      zIndex: 2000,
-      backdropFilter: 'blur(2px)', // Flou réduit
-      WebkitBackdropFilter: 'blur(2px)',
+      zIndex: 3000, // Z-index plus élevé pour être au-dessus de tout
+      backdropFilter: 'blur(3px)', // Flou pour un meilleur contraste
+      WebkitBackdropFilter: 'blur(3px)',
       animation: 'fadeIn 0.5s forwards'
     },
     container: {
@@ -56,7 +71,9 @@ const WelcomeOverlay = ({ onClose }) => {
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      textAlign: 'center'
+      textAlign: 'center',
+      animation: 'scaleIn 0.5s forwards',
+      transform: 'scale(0.95)'
     },
     logo: {
       width: isMobile ? '150px' : '200px',
@@ -127,7 +144,7 @@ const WelcomeOverlay = ({ onClose }) => {
       cursor: 'pointer',
       marginTop: '20px',
       boxShadow: '0 2px 5px rgba(0, 0, 0, 0.2)',
-      transition: 'background-color 0.2s ease',
+      transition: 'background-color 0.2s ease, transform 0.2s ease',
       textTransform: 'uppercase',
       letterSpacing: '1px'
     }
@@ -138,6 +155,10 @@ const WelcomeOverlay = ({ onClose }) => {
     @keyframes fadeIn {
       from { opacity: 0; }
       to { opacity: 1; }
+    }
+    @keyframes scaleIn {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
     }
   `;
 
@@ -176,7 +197,7 @@ const WelcomeOverlay = ({ onClose }) => {
   const instructions = (isMobile || isTablet) ? mobileInstructions : desktopInstructions;
 
   return (
-    <div style={styles.overlay} onClick={handleClose}>
+    <div style={styles.overlay} onClick={stopPropagation}>
       <style>{keyframes}</style>
       <div 
         style={styles.container} 
@@ -195,7 +216,8 @@ const WelcomeOverlay = ({ onClose }) => {
         />
         <h1 style={styles.title}>BIENVENUE AU STUDIO TI MORNE</h1>
         <p style={styles.subtitle}>
-        Explorez notre studio et découvrez un savoir-faire unique, où l’innovation digitale se met au service d’expériences immersives et interactives.</p>
+          Explorez notre studio et découvrez un savoir-faire unique, où l'innovation digitale se met au service d'expériences immersives et interactives.
+        </p>
         
         <h2 style={styles.sectionTitle}>COMMENT NAVIGUER DANS NOTRE UNIVERS</h2>
         <div style={styles.instructionsList}>
@@ -216,6 +238,14 @@ const WelcomeOverlay = ({ onClose }) => {
           style={styles.button}
           onClick={handleClose}
           onTouchStart={handleClose}
+          onMouseOver={(e) => {
+            e.currentTarget.style.backgroundColor = '#45b4a6';
+            e.currentTarget.style.transform = 'scale(1.03)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.backgroundColor = '#2A9D8F';
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
         >
           COMMENCER L'EXPÉRIENCE
         </button>
@@ -225,7 +255,8 @@ const WelcomeOverlay = ({ onClose }) => {
 };
 
 WelcomeOverlay.propTypes = {
-  onClose: PropTypes.func
+  onClose: PropTypes.func,
+  autoHideTime: PropTypes.number
 };
 
 export default memo(WelcomeOverlay);
