@@ -29,10 +29,7 @@ const HomePage = ({
   // Référence pour la vidéo
   const handleEnterClick = () => {
     if (onEnterClick) {
-      onEnterClick();
-    } else {
-      // Comportement par défaut si aucun callback n'est fourni
-      navigate('/experience');
+      onEnterClick();y
     }
   };
 
