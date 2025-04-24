@@ -175,12 +175,11 @@ export default function useTouchControls({
       
       // Créer un événement simulé avec le flag tactile
       const simulatedEvent = {
-        clientX: window.innerWidth * (0.5 - normalizedX * 0.5), // Ajusté pour l'inversion
-        clientY: touch.clientY,
-        normalizedX: normalizedX,
-        normalizedY: 0, // On maintient vertical à 0 pour mieux contrôler
+        normalizedX: -deltaX * sensitivity, // Delta, pas position absolue
+        normalizedY: 0,
         isTouchEvent: true,
-        type: 'touchmove'
+        type: 'touchmove',
+        swipeDelta: true // Nouveau flag pour identifier ces événements spéciaux
       };
       
       // Envoyer l'événement directement

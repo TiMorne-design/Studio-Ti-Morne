@@ -345,12 +345,14 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
     
     // Permission spéciale pour les événements tactiles sur la terrasse
   const allowTouchOnTerrace = isTouchEvent;
-  
-  // Vérifier si on est sur la terrasse et si on doit ignorer l'événement
-  if (isOnTerrace.current && !allowTouchOnTerrace && !hasPerformedFirstTurn.current) {
-    return;
+
+  // Détecter si c'est un événement spécial de type "delta swipe" venant de TouchControls
+  if (isTouchEvent && e.swipeDelta === true) {
+    // Appliquer directement le delta de rotation
+    targetRotation.current.y += e.normalizedX;
+    return; // Important: sortir de la fonction ici pour éviter le traitement standard
   }
-   
+  
   // Vérifier si on est sur la terrasse et si on doit ignorer l'événement
   if (isOnTerrace.current && !allowTouchOnTerrace && !hasPerformedFirstTurn.current) {
     return;
@@ -360,15 +362,7 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
   const x = e.normalizedX || (e.clientX / window.innerWidth) * 2 - 1;
   const y = e.normalizedY || (e.clientY / window.innerHeight) * 2 - 1;
   
-  // NOUVEAU: Appliquer une courbe de réponse plus douce pour les petits mouvements
-  // Utiliser une courbe cubique pour une réponse plus naturelle
-  const applyResponseCurve = (value, exponent = 3) => {
-    return Math.sign(value) * Math.pow(Math.abs(value), exponent);
-  };
 
-  // Ajuster la sensibilité pour les événements tactiles
-  const sensitivityFactor = isTouchEvent ? 1.2 : 1.0;
-  
   // Appliquer la courbe de réponse pour un mouvement plus précis au centre
   const xModified = Math.sign(x) * Math.pow(Math.abs(x), 1.2);
   const yModified = Math.sign(y) * Math.pow(Math.abs(y), 1.3);
