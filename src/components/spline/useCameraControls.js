@@ -343,15 +343,14 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
     // Détecter si l'événement vient d'un appareil tactile
     const isTouchEvent = e.isTouchEvent === true || e.type === 'touchmove';
     
-    // Ignorer tous les événements tactiles pour désactiver la rotation par toucher
-  if (isTouchEvent) {
-    return;
-  }
-  
-  // MODIFICATION IMPORTANTE: Permettre les événements tactiles même sur la terrasse 
-  // avant le premier demi-tour
+    // Permission spéciale pour les événements tactiles sur la terrasse
   const allowTouchOnTerrace = isTouchEvent;
   
+  // Vérifier si on est sur la terrasse et si on doit ignorer l'événement
+  if (isOnTerrace.current && !allowTouchOnTerrace && !hasPerformedFirstTurn.current) {
+    return;
+  }
+   
   // Vérifier si on est sur la terrasse et si on doit ignorer l'événement
   if (isOnTerrace.current && !allowTouchOnTerrace && !hasPerformedFirstTurn.current) {
     return;

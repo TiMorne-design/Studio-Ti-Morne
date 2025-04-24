@@ -376,20 +376,49 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
   
   return (
     <div
-      style={{
-        width: '100vw',
-        height: '100vh',
-        position: 'relative'
-      }}
-      onWheel={handleWheel}
-      onMouseMove={handleMouseMove}
-    >
-      <Spline
-        scene={scenePath}
-        onLoad={onLoad}
-        onSplineMouseUp={onSplineMouseUp}
-      />
-    </div>
+  style={{
+    width: '100vw',
+    height: '100vh',
+    position: 'relative'
+  }}
+  onWheel={handleWheel}
+  onMouseMove={handleMouseMove}
+  onTouchStart={(e) => {
+    // Empêcher le comportement par défaut
+    e.preventDefault();
+  }}
+  onTouchMove={(e) => {
+    // Empêcher le comportement par défaut
+    e.preventDefault();
+    
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      
+      // Créer un événement normalisé
+      const touchEvent = {
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+        normalizedX: (touch.clientX / window.innerWidth) * 2 - 1,
+        normalizedY: (touch.clientY / window.innerHeight) * 2 - 1,
+        isTouchEvent: true,
+        type: 'touchmove'
+      };
+      
+      // Appeler la fonction handleMouseMove existante
+      handleMouseMove(touchEvent);
+    }
+  }}
+  onTouchEnd={(e) => {
+    // Empêcher le comportement par défaut
+    e.preventDefault();
+  }}
+>
+  <Spline
+    scene={scenePath}
+    onLoad={onLoad}
+    onSplineMouseUp={onSplineMouseUp}
+  />
+</div>
   );
 });
 

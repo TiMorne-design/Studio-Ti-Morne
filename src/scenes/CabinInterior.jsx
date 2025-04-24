@@ -746,13 +746,11 @@ const initializeTouchControls = useCallback(() => {
 }, [isMobile, isTablet, isLandscape, attachTouchListeners]);
 
 
-// Ensuite remplacez l'effet existant par:
 useEffect(() => {
-  if (isMobile || isTablet) {
-    const cleanup = initializeTouchControls();
-    return cleanup;
-  }
-}, [isMobile, isTablet, initializeTouchControls]);
+  // Ne pas initialiser TouchControls du tout
+  // Nous utiliserons uniquement le mécanisme de suivi direct du doigt
+  console.log("Contrôles tactiles avec swipe/inertie désactivés");
+}, []);
   
       
   // Si l'appareil est trop peu puissant, afficher l'expérience allégée
