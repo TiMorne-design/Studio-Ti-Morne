@@ -18,9 +18,10 @@
       width: 100% !important;
       border-radius: 0 !important;
       padding: 20px !important;
-      top: 60px !important; /* Laisser de l'espace pour le bouton retour */
-      height: calc(100% - 60px - 70px) !important; /* Ajuster la hauteur pour éviter les boutons de navigation */
-      bottom: 70px !important; /* Laisser de l'espace pour les boutons de navigation */
+      top: 80px !important; /* Augmenter l'espace pour le bouton retour */
+      height: auto !important; /* Laisser la hauteur s'ajuster naturellement */
+      max-height: calc(100% - 80px - 120px) !important; /* Ajuster la hauteur pour éviter les boutons de navigation */
+      bottom: auto !important; /* Ne pas fixer le bas */
       right: 0 !important;
       touch-action: pan-y;
     }
@@ -31,11 +32,13 @@
     div[class*="overlay-container"] {
       width: 50% !important;
       right: 0 !important;
-      height: calc(100% - 20px) !important;
-      top: 10px !important;
-      bottom: 10px !important;
+      height: auto !important;
+      max-height: calc(100% - 120px) !important; /* Réduire la hauteur pour laisser de l'espace en bas */
+      top: 60px !important;
+      bottom: auto !important; /* Ne pas fixer le bas */
       border-top-left-radius: 20px !important;
       border-bottom-left-radius: 20px !important;
+      margin-bottom: 80px !important; /* Ajouter une marge en bas pour éviter les boutons */
     }
   }
 
@@ -66,14 +69,17 @@
   
   /* Styliser le bouton de retour */
   .return-button {
-    top: 10px !important;
-    left: 10px !important;
+    top: 15px !important;
+    left: 15px !important;
     scale: 0.9 !important;
     z-index: 1100 !important; /* S'assurer qu'il est au-dessus des overlays */
   }
 
   div[style*="returnButton"] {
     z-index: 1100 !important; /* Pour cibler le bouton de retour via son style */
+    top: 15px !important;
+    left: 15px !important;
+    margin-bottom: 25px !important;
   }
   
   /* --- Interface navigationnelle --- */
@@ -159,7 +165,7 @@
   /* Styles spécifiques pour l'orientation portrait */
   @media (max-width: 768px) and (orientation: portrait) {
     .mobile-controls {
-      bottom: 80px !important; /* Repositionner les contrôles plus haut en portrait */
+      bottom: 100px !important; /* Repositionner les contrôles plus haut en portrait */
       z-index: 1050 !important; /* S'assurer qu'ils sont au-dessus des autres éléments */
     }
     
@@ -171,13 +177,21 @@
     /* S'assurer que les barres de navigation sont au-dessus des overlays */
     div[style*="toolbar"] {
       z-index: 1050 !important;
+      bottom: 0 !important;
+      padding-bottom: 10px !important;
+    }
+    
+    /* Ajuster spécifiquement la barre de navigation mobile */
+    div[style*="position: fixed"][style*="bottom: 0"] {
+      bottom: 0 !important;
+      z-index: 1150 !important; /* Placer au-dessus de tout */
     }
   }
   
   /* Styles spécifiques pour l'orientation paysage */
   @media (max-width: 768px) and (orientation: landscape) {
     .mobile-controls {
-      bottom: 20px !important;
+      bottom: 80px !important;
       right: 20px !important;
       left: auto !important;
       flex-direction: column !important;
@@ -188,11 +202,19 @@
     /* Réduire les marges et paddings en paysage */
     div[class*="overlay-container"] {
       padding: 15px !important;
+      margin-bottom: 80px !important; /* Espace important sous l'overlay */
     }
 
     /* S'assurer que les barres de navigation sont au-dessus des overlays */
     div[style*="toolbar"] {
-      z-index: 1050 !important;
+      z-index: 1150 !important; /* Valeur plus élevée pour garantir le placement */
+      bottom: 0 !important;
+    }
+    
+    /* Cibler spécifiquement la barre de navigation mobile */
+    div[style*="position: fixed"][style*="bottom: 0"] {
+      bottom: 0 !important;
+      z-index: 1150 !important;
     }
   }
 }
