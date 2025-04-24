@@ -387,7 +387,7 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
   // Calcul des rotations
   // Pour les événements tactiles, ne pas inverser la direction
 if (isTouchEvent) {
-  targetRotation.current.y = baseAngle + (xModified * config.maxSideRotation);
+  targetRotation.current.y = baseAngle + (-xModified * config.maxSideRotation);
 } else {
   // Pour la souris, garder l'inversion
   targetRotation.current.y = baseAngle + (-xModified * config.maxSideRotation);
