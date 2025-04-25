@@ -584,6 +584,31 @@ useEffect(() => {
     // Obtenir l'ID de l'objet
     const resolvedObjectId = objectId || getObjectId(objectName);
     
+      // Ajouter des logs pour le débogage
+  console.log("Objet cliqué:", objectName);
+  console.log("ID résolu:", resolvedObjectId);
+  console.log("ID EOL attendu:", BUTTON_IDS.EOL);
+  console.log("Est-ce le bouton EOL?", resolvedObjectId === BUTTON_IDS.EOL);
+  
+  // Vérifier si c'est l'un de vos boutons
+  if (resolvedObjectId === BUTTON_IDS.EOL) {
+    console.log("Tentative de navigation vers /dataviz/eoliennes");
+    navigate('/dataviz/eoliennes');
+    return;
+  }
+  
+  if (resolvedObjectId === BUTTON_IDS.SARGASSE) {
+    console.log("Tentative de navigation vers /dataviz/sargasses");
+    navigate('/dataviz/sargasses');
+    return;
+  }
+  
+  if (resolvedObjectId === BUTTON_IDS.TIMORNE) {
+    console.log("Tentative de navigation vers /conception");
+    navigate('/conception');
+    return;
+  }
+  
     // Identifier les types d'objets spéciaux
     const isPortfolioButton = (objectName === 'BUTTON_PORTFOLIO' || 
       objectName.includes('BUTTON_PORTFOLIO')) && 
@@ -847,27 +872,18 @@ useEffect(() => {
         </div>
       )}
       
-      {/* Contrôles de mouvement sur mobile */}
-      {(isMobile || isTablet) && (
-        <MobileControls
-          onMoveForward={handleMoveForward}
-          onMoveBackward={handleMoveBackward}
-        />
-      )}
-
-      {/* Contrôles de mouvement sur mobile - masqués quand un overlay est affiché */}
-      {/* Contrôles de mouvement sur mobile - masqués quand un overlay est affiché */}
-{(isMobile || isTablet) && !(
-  showAboutOverlay || 
-  showPrestationOverlay || 
-  (typeof showWelcomeOverlay !== 'undefined' && showWelcomeOverlay) || 
-  showOrientationOverlay
-) && (
-  <MobileControls
-    onMoveForward={handleMoveForward}
-    onMoveBackward={handleMoveBackward}
-  />
-)}
+     
+{/* Contrôles de mouvement sur mobile - masqués quand un overlay est affiché */}
+{(isMobile || isTablet) && 
+  !showAboutOverlay && 
+  !showPrestationOverlay && 
+  !showOrientationOverlay && (
+    <MobileControls
+      onMoveForward={handleMoveForward}
+      onMoveBackward={handleMoveBackward}
+    />
+  )
+}
         
       {/* Sélecteur de qualité pour les appareils mobiles */}
       {(isMobile || isTablet) && (

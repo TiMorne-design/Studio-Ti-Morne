@@ -42,8 +42,7 @@ const MobileControls = ({ onMoveForward, onMoveBackward }) => {
   };
 
   const handleTouchStart = useCallback((e, direction) => {
-    e.stopPropagation();
-
+    // Pas besoin de stopPropagation ici, ces boutons ont leurs propres zones distinctes
     const touch = e.touches[0];
     buttonStateRef.current = {
       isPressed: true,
@@ -65,8 +64,6 @@ const MobileControls = ({ onMoveForward, onMoveBackward }) => {
   }, [onMoveForward, onMoveBackward]);
 
   const handleTouchEnd = useCallback((e) => {
-    e.stopPropagation();
-    
     // Reset visual state
     e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
     e.currentTarget.style.transform = 'scale(1)';

@@ -4,6 +4,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import LoadingScreen from './components/ui/LoadingScreen';
 import HomePage from './scenes/HomePage';
 import CabinInterior from './scenes/CabinInterior';
+import DatavizEoliennesPage from "./scenes/DatavizEoliennesPage";
+import DatavizSargassesPage from "./scenes/DatavizSargassesPage";
+import TimorneConceptionPage from "./scenes/TimorneConceptionPage";
 import './App.css';
 import './styles/mobile.css';
 
@@ -48,6 +51,34 @@ function App() {
                 </Suspense>
               } 
             />
+
+           {/* Route pour la visualisation des éoliennes */}
+           <Route 
+              path="/dataviz/eoliennes" 
+              element={
+                <Suspense fallback={<LoadingScreen message="Chargement de l'expérience..." />}>
+                  <DatavizEoliennesPage />
+                </Suspense>
+              } 
+            />
+
+<Route 
+  path="/dataviz/sargasses" 
+  element={
+    <Suspense fallback={<LoadingScreen message="Chargement..." />}>
+      <DatavizSargassesPage />
+    </Suspense>
+  } 
+/>
+
+<Route 
+  path="/conceptionstudio" 
+  element={
+    <Suspense fallback={<LoadingScreen message="Chargement..." />}>
+      <TimorneConceptionPage />
+    </Suspense>
+  } 
+/>
             
             {/* Autres routes */}
             <Route path="/contact" element={<Contact />} />

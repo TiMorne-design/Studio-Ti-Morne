@@ -382,17 +382,14 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
     position: 'relative'
   }}
   onWheel={handleWheel}
-  onMouseMove={handleMouseMove}
-  onTouchStart={(e) => {
-    // Empêcher le comportement par défaut
-    e.preventDefault();
-  }}
-  onTouchMove={(e) => {
-    // Empêcher le comportement par défaut
-    e.preventDefault();
-    
-    if (e.touches.length === 1) {
-      const touch = e.touches[0];
+    onMouseMove={handleMouseMove}
+    // Modifier les écouteurs d'événements tactiles
+    onTouchStart={(e) => {
+      // Ne pas appeler preventDefault() ici
+    }}
+    onTouchMove={(e) => {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
       
       // Créer un événement normalisé
       const touchEvent = {
@@ -409,9 +406,7 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
     }
   }}
   onTouchEnd={(e) => {
-    // Empêcher le comportement par défaut
-    e.preventDefault();
-  }}
+    }}
 >
   <Spline
     scene={scenePath}

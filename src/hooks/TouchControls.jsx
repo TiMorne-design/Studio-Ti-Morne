@@ -85,8 +85,6 @@ export default function TouchControls({
       if (onMouseMove) {
         onMouseMove(simulatedEvent);
       }
-      
-      e.preventDefault();
     }
     
     // Update last position
@@ -113,9 +111,11 @@ export default function TouchControls({
   const attachTouchListeners = useCallback((element) => {
     if (!element) return () => {};
     
-    element.addEventListener('touchstart', handleTouchStart, { passive: false });
-    element.addEventListener('touchmove', handleTouchMove, { passive: false });
-    element.addEventListener('touchend', handleTouchEnd, { passive: false });
+    // Important: spécifier { passive: true } pour les écouteurs d'événements tactiles
+    // Cela indique au navigateur que ces gestionnaires n'appelleront jamais preventDefault()
+    element.addEventListener('touchstart', handleTouchStart, { passive: true });
+    element.addEventListener('touchmove', handleTouchMove, { passive: true });
+    element.addEventListener('touchend', handleTouchEnd, { passive: true });
     
     return () => {
       element.removeEventListener('touchstart', handleTouchStart);
@@ -124,7 +124,21 @@ export default function TouchControls({
     };
   }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
 
+  const stopInertia = useCallback(() => {
+    // Réinitialiser complètement l'état tactile
+    touchStateRef.current = {
+      startX: 0,
+      startY: 0,
+      lastX: 0,
+      lastY: 0,
+      timestamp: 0,
+      moving: false,
+      moveType: null
+    };
+  }, []);
+
   return {
-    attachTouchListeners
+    attachTouchListeners,
+    stopInertia
   };
 }

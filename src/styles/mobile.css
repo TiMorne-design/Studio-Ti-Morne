@@ -253,3 +253,29 @@
     z-index: 1050 !important;
   }
 }
+
+/* Ajout pour bloquer le comportement tactile par défaut sans preventDefault() */
+.spline-container {
+  /* Désactiver les comportements de défilement mais autoriser le pan */
+  touch-action: pan-x pan-y;
+  /* Assurer que le contenu ne défile pas */
+  overflow: hidden;
+}
+
+/* Pour le conteneur principal de l'application */
+.app-container {
+  touch-action: none;
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* Pour l'élément div dans SplineScene */
+#root, html, body {
+  overscroll-behavior: none;
+  overflow: hidden;
+  touch-action: none;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}

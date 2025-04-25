@@ -43,6 +43,8 @@ export const VIEW_MAPPINGS = {
     cameraVariablePrefix: 'contact',
     timeout: 2000
   },
+
+
 };
 
 // Configuration des tiroirs de prestation
