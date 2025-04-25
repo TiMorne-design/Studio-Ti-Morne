@@ -584,31 +584,35 @@ useEffect(() => {
     // Obtenir l'ID de l'objet
     const resolvedObjectId = objectId || getObjectId(objectName);
     
-      // Ajouter des logs pour le débogage
-  console.log("Objet cliqué:", objectName);
-  console.log("ID résolu:", resolvedObjectId);
-  console.log("ID EOL attendu:", BUTTON_IDS.EOL);
-  console.log("Est-ce le bouton EOL?", resolvedObjectId === BUTTON_IDS.EOL);
+    // Ajouter des logs pour le débogage
+    console.log("=== Debug EOL Button Click ===");
+    console.log("Nom de l'objet:", objectName);
+    console.log("ID résolu:", resolvedObjectId);
+    console.log("ID EOL attendu:", BUTTON_IDS.EOL);
+    console.log("Est-ce le bouton EOL?", resolvedObjectId === BUTTON_IDS.EOL);
+    console.log("Type de l'objet:", typeof resolvedObjectId);
+    console.log("Type de BUTTON_IDS.EOL:", typeof BUTTON_IDS.EOL);
+    console.log("=== Fin Debug ===");
+    
+    // Vérifier si c'est l'un de vos boutons
+    if (resolvedObjectId === BUTTON_IDS.EOL) {
+      console.log("Tentative de navigation vers /dataviz/eoliennes");
+      navigate('/dataviz/eoliennes');
+      return;
+    }
   
-  // Vérifier si c'est l'un de vos boutons
-  if (resolvedObjectId === BUTTON_IDS.EOL) {
-    console.log("Tentative de navigation vers /dataviz/eoliennes");
-    navigate('/dataviz/eoliennes');
-    return;
-  }
+    if (resolvedObjectId === BUTTON_IDS.SARGASSES) {
+      console.log("Tentative de navigation vers /dataviz/sargasses");
+      navigate('/dataviz/sargasses');
+      return;
+    }
   
-  if (resolvedObjectId === BUTTON_IDS.SARGASSE) {
-    console.log("Tentative de navigation vers /dataviz/sargasses");
-    navigate('/dataviz/sargasses');
-    return;
-  }
-  
-  if (resolvedObjectId === BUTTON_IDS.TIMORNE) {
-    console.log("Tentative de navigation vers /conception");
-    navigate('/conception');
-    return;
-  }
-  
+    if (resolvedObjectId === BUTTON_IDS.TIMORNE) {
+      console.log("Tentative de navigation vers /conception");
+      navigate('/conception');
+      return;
+    }
+    
     // Identifier les types d'objets spéciaux
     const isPortfolioButton = (objectName === 'BUTTON_PORTFOLIO' || 
       objectName.includes('BUTTON_PORTFOLIO')) && 

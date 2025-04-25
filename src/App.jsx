@@ -72,7 +72,7 @@ function App() {
 />
 
 <Route 
-  path="/conceptionstudio" 
+  path="/conception" 
   element={
     <Suspense fallback={<LoadingScreen message="Chargement..." />}>
       <TimorneConceptionPage />
