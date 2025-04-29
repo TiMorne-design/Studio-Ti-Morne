@@ -1,20 +1,23 @@
 /**
  * Composant unifié pour les messages d'orientation sur mobile
- * Design amélioré et plus cohérent avec l'identité visuelle de l'application
+ * Design plus discret et adapté à la page d'accueil
  */
 import React, { useState, useEffect, memo } from 'react';
 import PropTypes from 'prop-types';
 import useDeviceDetection from '../../hooks/useDeviceDetection';
 
 /**
- * Overlay d'orientation unifié avec design amélioré
+ * Overlay d'orientation unifié avec design amélioré et plus discret
  */
-const UnifiedOrientationOverlay = ({ onClose, autoHideTime = 10000 }) => {
+const UnifiedOrientationOverlay = ({ onClose, autoHideTime = 10000, isHomeVersion = false }) => {
   const [visible, setVisible] = useState(true);
   const { isMobile, isTablet } = useDeviceDetection();
   
   // Déterminer si on utilise un style compact (pour les petits écrans)
   const isCompact = isMobile && window.innerHeight < 600;
+  
+  // Style encore plus compact pour la version de la page d'accueil
+  const isMinimal = isHomeVersion;
 
   // Effet pour cacher automatiquement l'overlay après un délai
   useEffect(() => {
@@ -36,94 +39,100 @@ const UnifiedOrientationOverlay = ({ onClose, autoHideTime = 10000 }) => {
       left: 0,
       width: '100%',
       height: '100%',
-      backgroundColor: 'rgba(17, 25, 40, 0.75)', // Fond légèrement bleuté
-      backdropFilter: 'blur(4px)',
-      WebkitBackdropFilter: 'blur(4px)',
+      backgroundColor: isMinimal ? 'transparent' : 'rgba(17, 25, 40, 0.75)',
+      backdropFilter: isMinimal ? 'none' : 'blur(4px)',
+      WebkitBackdropFilter: isMinimal ? 'none' : 'blur(4px)',
       display: visible ? 'flex' : 'none',
       justifyContent: 'center',
-      alignItems: 'center',
+      alignItems: isMinimal ? 'flex-end' : 'center',
       zIndex: 2000,
       animation: 'fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-      transition: 'opacity 0.3s ease'
+      transition: 'opacity 0.3s ease',
+      pointerEvents: isMinimal ? 'none' : 'auto'
     },
     container: {
-      backgroundColor: 'rgba(255, 255, 255, 0.92)',
-      borderRadius: '18px',
-      padding: isCompact ? '20px' : '30px',
-      maxWidth: '85%',
+      backgroundColor: isMinimal ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.92)',
+      borderRadius: isMinimal ? '12px 12px 0 0' : '18px',
+      padding: isMinimal ? '15px' : (isCompact ? '20px' : '30px'),
+      maxWidth: isMinimal ? '100%' : '85%',
+      width: isMinimal ? '100%' : 'auto',
       textAlign: 'center',
-      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+      boxShadow: isMinimal ? '0 -4px 12px rgba(0, 0, 0, 0.3)' : '0 8px 32px rgba(0, 0, 0, 0.2)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      gap: isCompact ? '12px' : '20px',
-      border: '1px solid rgba(42, 157, 143, 0.3)',
+      gap: isMinimal ? '8px' : (isCompact ? '12px' : '20px'),
+      border: isMinimal ? 'none' : '1px solid rgba(42, 157, 143, 0.3)',
       transform: 'translateY(0)',
-      animation: 'slideUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)'
+      animation: isMinimal ? 'slideUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'slideUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+      margin: isMinimal ? '0 0 20px 0' : '0',
+      pointerEvents: 'auto',
+      marginBottom: isMinimal ? '0' : 'auto'
     },
     title: {
-      fontSize: isCompact ? '18px' : '22px',
+      fontSize: isMinimal ? '16px' : (isCompact ? '18px' : '22px'),
       fontWeight: '500',
-      color: '#2A9D8F',
+      color: isMinimal ? 'white' : '#2A9D8F',
       margin: 0,
       fontFamily: '"Reem Kufi", sans-serif',
       textTransform: 'uppercase',
       letterSpacing: '1px'
     },
     iconContainer: {
-      width: isCompact ? '50px' : '70px',
-      height: isCompact ? '50px' : '70px',
+      width: isMinimal ? '36px' : (isCompact ? '50px' : '70px'),
+      height: isMinimal ? '36px' : (isCompact ? '50px' : '70px'),
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      backgroundColor: 'rgba(42, 157, 143, 0.1)',
+      backgroundColor: isMinimal ? 'rgba(255, 255, 255, 0.15)' : 'rgba(42, 157, 143, 0.1)',
       borderRadius: '50%',
-      marginBottom: isCompact ? '5px' : '10px'
+      marginBottom: isMinimal ? '5px' : (isCompact ? '5px' : '10px')
     },
     icon: {
-      fontSize: isCompact ? '28px' : '36px',
+      fontSize: isMinimal ? '20px' : (isCompact ? '28px' : '36px'),
       animation: 'rotate90 1.5s infinite alternate',
       display: 'block',
       transform: 'rotate(0deg)'
     },
     message: {
-      fontSize: isCompact ? '14px' : '16px',
+      fontSize: isMinimal ? '13px' : (isCompact ? '14px' : '16px'),
       lineHeight: '1.5',
-      color: '#333',
+      color: isMinimal ? 'rgba(255, 255, 255, 0.9)' : '#333',
       margin: '0 0 5px 0'
     },
     highlight: {
-      color: '#2A9D8F',
+      color: isMinimal ? 'white' : '#2A9D8F',
       fontWeight: '500'
     },
     buttonContainer: {
       display: 'flex',
       gap: '15px',
-      marginTop: isCompact ? '5px' : '15px',
+      marginTop: isMinimal ? '5px' : (isCompact ? '5px' : '15px'),
       width: '100%',
       justifyContent: 'center'
     },
     button: {
-      backgroundColor: '#2A9D8F',
+      backgroundColor: isMinimal ? 'rgba(255, 255, 255, 0.15)' : '#2A9D8F',
       color: 'white',
       border: 'none',
       borderRadius: '25px',
-      padding: isCompact ? '10px 15px' : '12px 20px',
-      fontSize: isCompact ? '14px' : '16px',
+      padding: isMinimal ? '8px 12px' : (isCompact ? '10px 15px' : '12px 20px'),
+      fontSize: isMinimal ? '13px' : (isCompact ? '14px' : '16px'),
       fontWeight: '500',
       cursor: 'pointer',
-      boxShadow: '0 4px 10px rgba(42, 157, 143, 0.2)',
+      boxShadow: isMinimal ? 'none' : '0 4px 10px rgba(42, 157, 143, 0.2)',
       transition: 'all 0.2s ease',
-      minWidth: isCompact ? '100px' : '120px',
+      minWidth: isMinimal ? '80px' : (isCompact ? '100px' : '120px'),
       textTransform: 'uppercase',
       letterSpacing: '0.5px'
     },
     secondaryButton: {
-      backgroundColor: 'rgba(240, 240, 240, 0.8)',
-      color: '#555'
+      backgroundColor: isMinimal ? 'transparent' : 'rgba(240, 240, 240, 0.8)',
+      color: isMinimal ? 'rgba(255, 255, 255, 0.7)' : '#555',
+      border: isMinimal ? '1px solid rgba(255, 255, 255, 0.3)' : 'none'
     },
     instructionContainer: {
-      display: 'flex',
+      display: isMinimal ? 'none' : 'flex',
       flexDirection: 'column',
       alignItems: 'flex-start',
       width: '100%',
@@ -195,6 +204,40 @@ const UnifiedOrientationOverlay = ({ onClose, autoHideTime = 10000 }) => {
   // Si non visible, ne rien afficher
   if (!visible) return null;
 
+  // Version minimaliste pour la home page
+  if (isMinimal) {
+    return (
+      <div style={styles.overlay}>
+        <style>{keyframes}</style>
+        <div style={styles.container}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+            <span style={styles.icon}>📱</span>
+            <span style={styles.message}>
+              Meilleure expérience en <span style={styles.highlight}>paysage</span>
+            </span>
+          </div>
+          <div style={styles.buttonContainer}>
+            <button 
+              style={{
+                ...styles.button, 
+                ...styles.secondaryButton
+              }}
+              onClick={handleContinue}
+            >
+              OK
+            </button>
+            <button 
+              style={styles.button}
+              onClick={requestLandscape}
+            >
+              Tourner
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={styles.overlay}>
       <style>{keyframes}</style>
@@ -262,7 +305,8 @@ const UnifiedOrientationOverlay = ({ onClose, autoHideTime = 10000 }) => {
 
 UnifiedOrientationOverlay.propTypes = {
   onClose: PropTypes.func,
-  autoHideTime: PropTypes.number
+  autoHideTime: PropTypes.number,
+  isHomeVersion: PropTypes.bool
 };
 
 export default memo(UnifiedOrientationOverlay);

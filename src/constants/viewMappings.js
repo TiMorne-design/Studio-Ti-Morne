@@ -39,8 +39,9 @@ export const VIEW_MAPPINGS = {
     timeout: 2000
   },
   contact: {
-    buttonId: BUTTON_IDS.CONTACT, // Vous devrez définir cet ID dans constants/ids.js
-    cameraVariablePrefix: 'contact',
+    buttonId: BUTTON_IDS.MAIL,
+    cameraVariablePrefix: 'contact', // Si une position de caméra spécifique existe
+    showOverlay: true, // Indique qu'un overlay doit être affiché
     timeout: 2000
   },
 
@@ -69,6 +70,7 @@ export const DRAWER_MAPPINGS = {
     title: "Développement d'Applications",
     contentType: "AppDevContent"
   }
+  
 };
 
 /**

@@ -15,7 +15,7 @@ const ReturnButton = ({ onClick, label = 'RETOUR', icon = '←', style = {} }) =
     // Empêcher la propagation pour éviter les conflits avec d'autres gestionnaires
     e.stopPropagation();
     // Empêcher le comportement par défaut pour les touchers
-    if (e.type === 'touchstart') {
+    if (e.type !== 'touchstart') {
       e.preventDefault();
     }
     // Appeler la fonction de callback

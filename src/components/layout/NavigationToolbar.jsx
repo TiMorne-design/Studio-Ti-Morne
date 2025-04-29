@@ -184,34 +184,62 @@ const NavigationToolbar = ({ onNavigate, isCameraControlsDisabled = false }) => 
           {renderMenuGroup(leftItems)}
         </div>
         
-        {/* Indicateur de défilement au centre */}
-        {!isCameraControlsDisabled && (
-          <div style={{
-            ...navbarStyles.scrollIndicator,
-            position: 'absolute',
-            left: '50%',
-            top: '-50px', 
-            transform: 'translateX(-50%)',
-            zIndex: 900, // Légèrement en-dessous pour que les boutons passent au dessus
-            width: '100px',
-            height: '100px'
+       {/* Indicateur de défilement au centre */}
+{!isCameraControlsDisabled && (
+  <div style={{
+    ...navbarStyles.scrollIndicator,
+    position: 'absolute',
+    left: '50%',
+    top: '-50px', 
+    transform: 'translateX(-50%)',
+    zIndex: 900,
+    width: '100px',
+    height: '100px'
+  }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <svg 
+        viewBox="0 0 100 100" 
+        width="100" 
+        height="100"
+      >
+        <defs>
+          <style>
+            {`
+              @keyframes rotateCircle {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+              .rotating-text {
+                animation: rotateCircle 20s linear infinite;
+                transform-origin: center;
+              }
+              /* Arrêter l'animation quand la navbar est masquée/en resize */
+              @media (max-width: 768px) {
+                .rotating-text {
+                  animation: none;
+                }
+              }
+            `}
+          </style>
+        </defs>
+        <g className="rotating-text">
+          <path 
+            id="circle-text-path" 
+            d="M 50, 50 m -37, 0 a 37,37 0 1,1 74,0 a 37,37 0 1,1 -74,0" 
+            fill="transparent" 
+          />
+          <text style={{ 
+            fill: '#2A9D8F', 
+            fontFamily: '"Reem Kufi", sans-serif', 
+            fontSize: '11px', 
+            letterSpacing: '1px' 
           }}>
-            <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-              <svg 
-                viewBox="0 0 100 100" 
-                width="100" 
-                height="100"
-                style={{ animation: 'rotateCircle 10s linear infinite' }}
-              >
-                <path id="circle-text-path" 
-                  d="M 50, 50 m -37, 0 a 37,37 0 1,1 74,0 a 37,37 0 1,1 -74,0" 
-                  fill="transparent" />
-                <text style={{ fill: '#2A9D8F', fontFamily: '"Reem Kufi", sans-serif', fontSize: '11px', letterSpacing: '1px' }}>
-                  <textPath xlinkHref="#circle-text-path" startOffset="5%">
-                    SCROLLER POUR AVANCER
-                  </textPath>
-                </text>
-              </svg>
+            <textPath xlinkHref="#circle-text-path" startOffset="5%">
+              SCROLLER POUR AVANCER
+            </textPath>
+          </text>
+        </g>
+      </svg>
               
               {/* Icône de souris au centre */}
               <div style={{ 

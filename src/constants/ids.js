@@ -15,6 +15,7 @@ export const BUTTON_IDS = {
   EOL: "cdd8f469-3a2c-41fe-9cf5-5319e073df17",
   SARGASSES: "199615bb-56cc-466e-84e9-9077ef533ee1",
   TIMORNE: "aebe6c17-73c8-4dce-9f36-c1e92d15e4b1",
+  MAIL: "d366dc0d-a8c9-4b09-a66b-5f978338d2dc",
   
   // IDs des tiroirs de prestation
   PRESTA_DV: "79d3df6f-9c9f-4595-a01b-722a0f42d4b7",
@@ -54,6 +55,7 @@ export const NAME_TO_ID_MAP = {
   'BUTTON_EOL': BUTTON_IDS.EOL,
   'BUTTON_SARGASSES': BUTTON_IDS.SARGASSES,
   'BUTTON_TIMORNE': BUTTON_IDS.TIMORNE,
+  'BUTTON_MAIL': BUTTON_IDS.MAIL,
   
   // Portes
   'PORTE_OUVERT': OBJECT_IDS.PORTE_OUVERT,

@@ -153,7 +153,7 @@ export const getCameraLimits = () => {
     minZ: -3200,      // Limite avant (fond du chalet)
     maxZ: 1200,       // Limite arrière (extérieur de la terrasse)
     doorThreshold: -800, // Seuil de la porte
-    doorTrigger: -400  // Position de déclenchement de la porte
+    doorTrigger: -400,  // Position de déclenchement de la porte
   };
 };
 

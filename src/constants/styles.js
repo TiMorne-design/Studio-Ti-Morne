@@ -88,7 +88,7 @@ export const overlayStyles = {
       bottom: '0',
       left: '0',
       width: '100%',
-      zIndex: 1000,
+      zIndex: 1050,
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',

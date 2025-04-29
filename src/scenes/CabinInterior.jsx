@@ -7,14 +7,13 @@ import { useNavigate } from 'react-router-dom';
 import SplineScene from '../components/spline/SplineScene';
 import AboutOverlay from '../components/overlays/AboutOverlay';
 import PrestationOverlay from '../components/overlays/PrestationOverlay';
-import WelcomeOverlay from '../components/overlays/WelcomeOverlay';
-import UnifiedOrientationOverlay from '../components/mobile/UnifiedOrientationOverlay';
 import NavigationToolbar from '../components/layout/NavigationToolbar';
 import ReturnButton from '../components/common/ReturnButton';
 import MobileControls from '../components/mobile/MobileControls';
 import MobileNavigationToolbar from '../components/mobile/MobileNavigationToolbar';
 import LiteExperience from '../components/mobile/LiteExperience';
 import { BUTTON_IDS, OBJECT_IDS } from '../constants/ids';
+import ContactOverlay from '../components/overlays/ContactOverlay';
 import { 
   VIEW_MAPPINGS, 
   getViewForObjectId,
@@ -69,7 +68,7 @@ export default function CabinInterior() {
   const [showPrestationOverlay, setShowPrestationOverlay] = useState(false);
   const [prestationContent, setPrestationContent] = useState(null);
   const [prestationTitle, setPrestationTitle] = useState('');
-  const [showOrientationOverlay, setShowOrientationOverlay] = useState(true);
+  const [showContactOverlay, setShowContactOverlay] = useState(false);
 
   // État pour la qualité visuelle
   const [qualityLevel, setQualityLevel] = useState(
@@ -301,6 +300,10 @@ useEffect(() => {
   const handleCloseAboutOverlay = useCallback(() => {
     setShowAboutOverlay(false);
   }, []);
+
+  const handleCloseContactOverlay = useCallback(() => {
+    setShowContactOverlay(false);
+  }, []);
   
   /**
    * Retourne à la position précédente de la caméra
@@ -308,6 +311,8 @@ useEffect(() => {
   const handleReturnToLastPosition = useCallback(() => {
     // Fermer tous les overlays
     setShowAboutOverlay(false);
+    setShowContactOverlay(false);
+
     
     // Si un overlay de prestation est ouvert, le fermer
     if (showPrestationOverlay) {
@@ -553,6 +558,11 @@ useEffect(() => {
     if (showPrestationOverlay) {
       handleClosePrestationOverlay();
     }
+
+    setShowContactOverlay(false);
+    if (showPrestationOverlay) {
+      handleClosePrestationOverlay();
+    }
     
     // Obtenir l'instance Spline
     if (splineSceneRef.current) {
@@ -583,17 +593,7 @@ useEffect(() => {
   const handleObjectClick = useCallback((objectName, splineApp, objectId = null) => {
     // Obtenir l'ID de l'objet
     const resolvedObjectId = objectId || getObjectId(objectName);
-    
-    // Ajouter des logs pour le débogage
-    console.log("=== Debug EOL Button Click ===");
-    console.log("Nom de l'objet:", objectName);
-    console.log("ID résolu:", resolvedObjectId);
-    console.log("ID EOL attendu:", BUTTON_IDS.EOL);
-    console.log("Est-ce le bouton EOL?", resolvedObjectId === BUTTON_IDS.EOL);
-    console.log("Type de l'objet:", typeof resolvedObjectId);
-    console.log("Type de BUTTON_IDS.EOL:", typeof BUTTON_IDS.EOL);
-    console.log("=== Fin Debug ===");
-    
+       
     // Vérifier si c'est l'un de vos boutons
     if (resolvedObjectId === BUTTON_IDS.EOL) {
       console.log("Tentative de navigation vers /dataviz/eoliennes");
@@ -634,6 +634,13 @@ useEffect(() => {
     // Gérer les clics sur les tiroirs de prestation
     const isPrestaDrawer = handlePrestaButtonClick(resolvedObjectId, splineApp);
     if (isPrestaDrawer) return;
+
+    // Vérification spécifique pour le bouton mail avant la vérification de vue
+if (objectId === 'd366dc0d-a8c9-4b09-a66b-5f978338d2dc' || objectName === 'BUTTON_MAIL') {
+  logger.log("Bouton mail cliqué, affichage de l'overlay de contact");
+  setShowContactOverlay(true);
+  return;
+}
     
     // Déterminer la vue cible
     const viewConfig = getViewForObjectId(resolvedObjectId);
@@ -708,6 +715,7 @@ useEffect(() => {
         }
         animateCameraToView(viewConfig.viewName, viewConfig.buttonId, true);
       }
+
     }
   }, [handlePrestaButtonClick, animateCameraToView, isMobile, showMobileGuide]);
 
@@ -865,6 +873,13 @@ useEffect(() => {
         />
       )}
 
+{showContactOverlay && (
+  <ContactOverlay 
+    onClose={handleCloseContactOverlay}
+    isMobile={isMobile}
+  />
+)}
+
         
       {/* Guide de swipe sur mobile */}
       {(isMobile || isTablet) && showMobileGuide && (
@@ -881,7 +896,7 @@ useEffect(() => {
 {(isMobile || isTablet) && 
   !showAboutOverlay && 
   !showPrestationOverlay && 
-  !showOrientationOverlay && (
+  !showContactOverlay &&  (
     <MobileControls
       onMoveForward={handleMoveForward}
       onMoveBackward={handleMoveBackward}
@@ -911,13 +926,6 @@ useEffect(() => {
             Haute
           </button>
         </div>
-      )}
-
-        {(isMobile || isTablet) && !isLandscape && showOrientationOverlay && (
-        <UnifiedOrientationOverlay 
-          onClose={() => setShowOrientationOverlay(false)}
-          autoHideTime={10000}
-        />
       )}
 
       {/* Écran de chargement personnalisé */}

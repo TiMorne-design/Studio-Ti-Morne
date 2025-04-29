@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { overlayStyles } from '../../constants/styles';
+import useDeviceDetection from '../../hooks/useDeviceDetection';
 
 /**
  * Composant de base réutilisable pour les overlays
@@ -19,6 +20,8 @@ const BaseOverlay = ({
 }) => {
   // État pour l'animation d'entrée/sortie
   const [isVisible, setIsVisible] = useState(false);
+
+  const { isMobile, isTablet } = useDeviceDetection();
   
   // Effet pour animer l'entrée
   useEffect(() => {
@@ -50,6 +53,19 @@ const BaseOverlay = ({
     opacity: isVisible ? 1 : 0,
     transform: isVisible ? 'translateX(0)' : 'translateX(50px)'
   };
+
+  if (!isMobile && !isTablet) {
+    containerStyle.height = 'calc(100% - 80px)';
+    containerStyle.marginBottom = '80px';
+    containerStyle.width = '45%';       // Réduit à 40% au lieu de 50%
+    containerStyle.maxWidth = '700px';  // Limite la largeur maximale
+  }
+
+  // Appliquer des styles spécifiques seulement sur desktop
+if (!isMobile && !isTablet) {
+  containerStyle.height = 'calc(100% - 80px)';
+  containerStyle.marginBottom = '80px';
+}
   
   return (
     

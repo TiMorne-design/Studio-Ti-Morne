@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import useDeviceDetection from '../hooks/useDeviceDetection';
 import WelcomeOverlay from '../components/overlays/WelcomeOverlay';
+import UnifiedOrientationOverlay from '../components/mobile/UnifiedOrientationOverlay';
 
 /**
  * Composant de page d'accueil avec transitions fluides optimisées
@@ -16,7 +17,7 @@ const HomePage = ({
   previewBackgroundImage = './images/scene-preview.png'
 }) => {
   const navigate = useNavigate();
-  const { isMobile } = useDeviceDetection();
+  const { isMobile, isTablet, isLandscape } = useDeviceDetection();
   const [textVisible, setTextVisible] = useState(false);
   const [buttonVisible, setButtonVisible] = useState(false);
   const [pageVisible, setPageVisible] = useState(false);
@@ -29,6 +30,11 @@ const HomePage = ({
   const [videoPlaying, setVideoPlaying] = useState(false);
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(false);
   const [splineLoaded, setSplineLoaded] = useState(false);
+  
+  // État pour l'orientation (nouveau)
+  const [showOrientationOverlay, setShowOrientationOverlay] = useState(
+    (isMobile || isTablet) && !isLandscape
+  );
   
   // Références pour les éléments DOM
   const videoRef = useRef(null);
@@ -137,6 +143,18 @@ const HomePage = ({
     }, 300);
   };
 
+  // Gestionnaire pour fermer l'overlay d'orientation
+  const handleOrientationClose = () => {
+    setShowOrientationOverlay(false);
+    
+    // Enregistrer la préférence dans le localStorage
+    try {
+      localStorage.setItem('orientationPromptDismissed', 'true');
+    } catch (err) {
+      console.error('Erreur lors de l\'enregistrement de la préférence:', err);
+    }
+  };
+
   // Effet pour l'animation d'entrée et le préchargement
   useEffect(() => {
     // Animation d'entrée
@@ -230,6 +248,12 @@ const HomePage = ({
     
     // Lancer le préchargement
     preloadResources();
+    
+    // Vérifier si l'invite d'orientation a déjà été rejetée
+    const orientationDismissed = localStorage.getItem('orientationPromptDismissed') === 'true';
+    if (orientationDismissed) {
+      setShowOrientationOverlay(false);
+    }
     
     // Nettoyage
     return () => {
@@ -493,6 +517,15 @@ const HomePage = ({
           />
         )}
       </div>
+
+      {/* Message d'orientation discret pour appareils mobiles en mode portrait */}
+      {(isMobile || isTablet) && !isLandscape && showOrientationOverlay && (
+        <UnifiedOrientationOverlay
+          onClose={handleOrientationClose}
+          autoHideTime={10000}
+          isHomeVersion={true}
+        />
+      )}
     </>
   );
 };

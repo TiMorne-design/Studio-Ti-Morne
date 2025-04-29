@@ -231,6 +231,10 @@ const WelcomeOverlay = ({ onClose, autoHideTime = 15000, splineLoaded = false })
     {
       icon: '🔍',
       text: 'Touchez les éléments interactifs pour découvrir nos services'
+    },
+    {
+      icon: '⚠️',
+      text: 'Si vous souhaitez revenir en arrière, utilisez le bouton retour de l\'expérience, pas celui du navigateur.'
     }
   ];
 
@@ -246,6 +250,10 @@ const WelcomeOverlay = ({ onClose, autoHideTime = 15000, splineLoaded = false })
     {
       icon: '👆',
       text: 'Cliquez sur les éléments pour découvrir nos expertises'
+    },
+    {
+      icon: '⚠️',
+      text: 'Si vous souhaitez revenir en arrière, utilisez le bouton retour de l\'expérience, pas celui du navigateur.'
     }
   ];
 
@@ -293,18 +301,7 @@ const WelcomeOverlay = ({ onClose, autoHideTime = 15000, splineLoaded = false })
           Data visualization, modélisation 3D, interfaces web innovantes — cliquez sur les différents boutons pour découvrir comment nous donnons vie à l'information par l'interaction.
         </p>
         
-        {/* Section de chargement conditionnelle */}
-        {loadingSpline && (
-          <div style={styles.loadingContainer}>
-            <div style={styles.loadingBar}>
-              <div style={{...styles.loadingFill, width: `${loadingProgress}%`}}></div>
-            </div>
-            <div style={styles.loadingText}>
-              Chargement de l'expérience... {Math.round(loadingProgress)}%
-            </div>
-          </div>
-        )}
-        
+                
         <button 
           style={{
             ...styles.button,
@@ -313,9 +310,8 @@ const WelcomeOverlay = ({ onClose, autoHideTime = 15000, splineLoaded = false })
           }}
           onClick={handleClose}
           onTouchStart={handleClose}
-          disabled={loadingSpline}
         >
-          {loadingSpline ? 'CHARGEMENT...' : 'COMMENCER L\'EXPÉRIENCE'}
+          COMMENCER L'EXPÉRIENCE
         </button>
       </div>
     </div>
