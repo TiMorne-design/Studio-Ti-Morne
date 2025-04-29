@@ -206,7 +206,7 @@ const MobileNavigationToolbar = ({ onNavigate, activeButtonId }) => {
             style={styles.submenuItem}
             onClick={() => handleNavigation('site')}
           >
-            Sites Web
+            Sites Experientiels
           </button>
         </div>
         

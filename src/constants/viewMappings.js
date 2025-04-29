@@ -51,12 +51,12 @@ export const VIEW_MAPPINGS = {
 export const DRAWER_MAPPINGS = {
   [BUTTON_IDS.PRESTA_DV]: {
     id: BUTTON_IDS.PRESTA_DV,
-    title: "Data Visualization",
+    title: "Data Visualisation",
     contentType: "DataVizContent"
   },
   [BUTTON_IDS.PRESTA_SE]: {
     id: BUTTON_IDS.PRESTA_SE,
-    title: "Search Engine Optimization",
+    title: "Sites expérientiels",
     contentType: "SearchEngineContent"
   },
   [BUTTON_IDS.PRESTA_M3]: {

@@ -49,7 +49,7 @@ export default function useCameraControls(cameraRef, splineRef) {
     mouseSensitivity: 0.8,     // Sensibilité aux mouvements de souris
     maxPositionOffset: 5,      // Décalage maximum de la position en unités 3D
     smoothFactor: 0.05,        // Facteur de lissage pour les mouvements
-    scrollSpeed: 2500,         // Vitesse de défilement
+    scrollSpeed: 3800,         // Vitesse de défilement
     centerWidthZone: 0.5,      // Zone centrale horizontale où le mouvement vertical est permis
     maxSideRotation: 1.2,      // Rotation horizontale maximale (environ 69 degrés)
     maxVerticalAngle: 0.3 ,     // Rotation verticale maximale (environ 17 degrés)
@@ -298,7 +298,7 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
     let delta = e.deltaY * 0.05 * config.scrollSpeed * sensitivityMultiplier;
     
     // Limiter la vitesse maximale (augmentée sur la terrasse)
-    const maxSpeed = onTerrace ? 400 : 200;
+    const maxSpeed = onTerrace ? 500 : 500;
     delta = cameraUtils.clamp(delta, -maxSpeed, maxSpeed);
     
     // Appliquer la direction de mouvement actuelle

@@ -38,10 +38,10 @@ const AboutContent = memo(() => (
         QUI SUIS-JE ?
       </h2>
       <p style={prestationStyles.paragraph}>
-        Passionné(e) de design et développement interactif, je crée des expériences numériques immersives qui allient esthétique et fonctionnalité. Avec plusieurs années d'expérience dans la conception 3D et le développement web, j'apporte une approche créative et technique à chaque projet.
+      Graphiste digitale et ingénieure paysagiste, je conjugue expertise en aménagement du territoire et conception visuelle pour créer des expériences numériques immersives. Cette double compétence me permet d'apporter une perspective unique où rigueur scientifique et sensibilité artistique se rencontrent pour valoriser le territoire martiniquais.
       </p>
       <p style={prestationStyles.paragraph}>
-        Ma spécialité est l'intégration de modèles 3D interactifs dans des interfaces web modernes, offrant ainsi des expériences utilisateur uniques et mémorables.
+        Ma spécialité est la création de solutions qui traduisent des données complexes en expériences visuelles accessibles, engageantes et porteuses de sens. À travers la modélisation 3D, la data visualisation et les interfaces interactives, je développe des outils innovants pour explorer, comprendre et co-imaginer les territoires de demain.
       </p>
     </div>
     
@@ -50,10 +50,10 @@ const AboutContent = memo(() => (
         VISION DE L'ENTREPRISE
       </h2>
       <p style={prestationStyles.paragraph}>
-        Notre mission est de repousser les limites de l'interaction numérique en créant des expériences web qui transcendent les attentes traditionnelles. Nous croyons que le futur du web est spatial et interactif.
+        Studio Ti Morne réinvente la manière de valoriser le territoire martiniquais en conjuguant innovation technologique, sensibilité environnementale et puissance créative. Notre mission est de rendre visibles les dynamiques de transition durable, en les transformant en récits immersifs qui transcendent les attentes traditionnelles.
       </p>
       <p style={prestationStyles.paragraph}>
-        Nous visons à fusionner l'art du design 3D avec l'ingénierie web pour offrir des solutions créatives qui captent l'attention et engagent les utilisateurs d'une manière nouvelle et significative.
+        Nous croyons que le futur de la visualisation territoriale est spatial et interactif. En mobilisant l'intelligence artificielle, la modélisation 3D et la réalité mixte, nous développons des expériences qui favorisent non seulement la compréhension des enjeux environnementaux, mais aussi l'engagement actif dans la construction d'avenirs durables.
       </p>
     </div>
     
@@ -63,16 +63,16 @@ const AboutContent = memo(() => (
       </h2>
       <div style={prestationStyles.cardsContainer}>
         <SkillCard 
-          title="Design 3D" 
-          description="Spline, Blender, Cinema 4D"
+          title="Design 3D & Data Viz" 
+          description="Spline, Blender, D3.js, Visualisations interactives"
+        />
+        <SkillCard 
+          title="Aménagement Territorial" 
+          description="Cartographie, Modélisation environnementale, Projections spatiales"
         />
         <SkillCard 
           title="Développement Web" 
-          description="React, Three.js, WebGL"
-        />
-        <SkillCard 
-          title="Design UX/UI" 
-          description="Figma, Adobe XD, Prototypage"
+          description="React, Three.js, Interfaces immersives"
         />
       </div>
     </div>

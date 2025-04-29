@@ -269,9 +269,9 @@ useEffect(() => {
     
     try {
       if (splineSceneRef.current.moveCamera) {
-        splineSceneRef.current.moveCamera(-400);
+        splineSceneRef.current.moveCamera(-6500);
       } else {
-        const simulatedEvent = { deltaY: -300 };
+        const simulatedEvent = { deltaY: -400 };
         splineSceneRef.current.handleWheel(simulatedEvent);
       }
     } catch (error) {

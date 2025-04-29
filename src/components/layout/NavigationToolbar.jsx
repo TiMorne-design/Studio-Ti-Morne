@@ -97,7 +97,7 @@ const NavigationToolbar = ({ onNavigate, isCameraControlsDisabled = false }) => 
       submenu: [
         { id: 'dataviz', label: 'DATA VIZ', view: 'dataviz' },
         { id: '3d', label: '3D', view: 'model3d' },
-        { id: 'site', label: 'SITES WEB', view: 'site' }
+        { id: 'site', label: 'SITES EXPERIENTIELS', view: 'site' }
       ]
     },
     {

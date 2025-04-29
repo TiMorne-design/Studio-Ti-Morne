@@ -84,15 +84,15 @@ ServiceSection.propTypes = {
 };
 
 /**
- * Contenu pour Data Visualization
+ * Contenu pour Data Visualisation
  */
 export const DataVizContent = memo(() => (
   <>
     <ServiceSection
-      title="Data Visualization"
+      title="Data Visualisation Immersive"
       description={[
-        "Transformez vos données en insights visuels percutants. Notre expertise en data visualization permet de rendre complexes ensembles de données accessibles et compréhensibles.",
-        "Nous utilisons des technologies de pointe pour créer des tableaux de bord interactifs, des graphiques dynamiques et des visualisations personnalisées qui racontent l'histoire cachée dans vos données."
+        "Transformez vos données territoriales et environnementales en insights visuels percutants et accessibles. Notre expertise en data visualisation immersive permet de rendre les dynamiques de transition durable visibles et compréhensibles pour tous les publics.",
+        "En conjuguant sensibilité artistique et rigueur scientifique, nous créons des infographies 3D interactives et des représentations visuelles dynamiques qui racontent l'histoire cachée dans vos données, facilitant ainsi la prise de décision et l'engagement citoyen."
       ]}
     />
     
@@ -100,16 +100,16 @@ export const DataVizContent = memo(() => (
       title="Nos services de visualisation"
       services={[
         {
-          title: "Tableaux de bord",
-          description: "Création de tableaux de bord interactifs pour surveiller vos KPIs en temps réel"
+          title: "Tableaux de bord interactifs",
+          description: "Outils de monitoring environnemental en temps réel pour suivre les indicateurs clés de durabilité territoriale"
         },
         {
-          title: "Rapports analytiques",
-          description: "Transformation de données brutes en rapports visuels explicites"
+          title: "Cartographie dynamique",
+          description: "Visualisation géospatiale des données pour une compréhension intuitive des dynamiques territoriales"
         },
         {
-          title: "Cartographie",
-          description: "Visualisation géospatiale des données pour des insights territoriaux"
+          title: "Narration de données",
+          description: "Transformation des données brutes en récits visuels engageants pour sensibiliser le public aux enjeux locaux"
         }
       ]}
     />
@@ -122,28 +122,27 @@ export const DataVizContent = memo(() => (
 export const SearchEngineContent = memo(() => (
   <>
     <ServiceSection
-      title="Optimisation pour les moteurs de recherche"
-      description={[
-        "Améliorez votre visibilité en ligne grâce à nos services d'optimisation SEO de pointe. Nous utilisons les meilleures pratiques pour propulser votre site dans les premiers résultats des moteurs de recherche.",
-        "Notre approche combine des techniques on-page, off-page et techniques pour une stratégie SEO complète et performante qui s'adapte aux évolutions des algorithmes."
-      ]}
-    />
-    
-    <ServiceSection
-      title="Nos services SEO"
-      services={[
-        {
-          title: "Audit SEO",
-          description: "Analyse complète de votre site et identification des opportunités d'amélioration"
-        },
-        {
-          title: "Optimisation on-page",
-          description: "Amélioration du contenu, de la structure et des métadonnées du site"
-        },
-        {
-          title: "SEO technique",
-          description: "Optimisation des aspects techniques pour améliorer l'indexation et le crawl"
-        }
+     description={[
+      "Concrétisez vos projets territoriaux avec nos services de développement d'expériences immersives sur mesure. Nous concevons des sites expérientiels et applications qui favorisent l'exploration active, la compréhension sensible et la co-construction des espaces.",
+      "Notre équipe utilise les technologies les plus récentes pour créer des parcours virtuels interactifs qui transforment la façon dont les citoyens, décideurs et parties prenantes interagissent avec le territoire et ses enjeux de développement durable."
+    ]}
+  />
+  
+  <ServiceSection
+    title="Nos solutions immersives"
+    services={[
+      {
+        title: "Stratégie de contenu territorial",
+        description: "Développement de récits numériques autour de vos projets d'aménagement et initiatives durables"
+      },
+      {
+        title: "Applications de sensibilisation",
+        description: "Expériences mobiles immersives pour découvrir les enjeux environnementaux locaux"
+      },
+      {
+        title: "Scénario digitaux",
+        description: "Répliques virtuelles interactives de territoires permettant simulation et planification durable"
+      }
       ]}
     />
   </>
@@ -155,10 +154,10 @@ export const SearchEngineContent = memo(() => (
 export const Model3DContent = memo(() => (
   <>
     <ServiceSection
-      title="Modélisation 3D"
+      title="Modélisation et projection 3D"
       description={[
-        "Donnez vie à vos idées grâce à notre expertise en modélisation 3D. Nous créons des modèles 3D détaillés et réalistes pour divers usages : visualisation produit, prototypage, expériences web interactives, et bien plus.",
-        "Notre équipe maîtrise les outils et techniques les plus avancés pour produire des modèles 3D optimisés et de haute qualité adaptés à vos besoins spécifiques."
+        "Donnez vie aux territoires de demain grâce à notre expertise en modélisation 3D. Nous créons des visualisations détaillées et réalistes pour concevoir, imaginer ou réhabiliter des espaces et projets d'aménagement innovants.",
+        "Notre équipe combine connaissances en aménagement territorial et maîtrise des outils 3D les plus avancés pour produire des projections spatiales qui facilitent la compréhension des enjeux, la participation citoyenne et la prise de décision éclairée."
       ]}
     />
     
@@ -166,16 +165,16 @@ export const Model3DContent = memo(() => (
       title="Nos services 3D"
       services={[
         {
-          title: "Modélisation produit",
-          description: "Création de modèles 3D réalistes pour la présentation de produits"
+          title: "Visualisation d'aménagements",
+          description: "Modélisation 3D réaliste pour prévisualiser l'impact de projets d'aménagement durable"
         },
         {
-          title: "Environnements 3D",
-          description: "Conception d'espaces et environnements 3D immersifs"
+          title: "Simulations environnementales",
+          description: "Modélisation des dynamiques naturelles et projection de scénarios d'évolution territoriale"
         },
         {
-          title: "Animation 3D",
-          description: "Animation de modèles pour vidéos promotionnelles et expériences interactives"
+          title: "Maquettes interactives",
+          description: "Création d'environnements 3D manipulables pour faciliter la concertation et co-construction"
         }
       ]}
     />
@@ -188,27 +187,27 @@ export const Model3DContent = memo(() => (
 export const AppDevContent = memo(() => (
   <>
     <ServiceSection
-      title="Développement d'applications"
+      title="Sites expérientiels et applications"
       description={[
-        "Concrétisez vos idées avec nos services de développement d'applications sur mesure. Nous concevons et développons des applications web et mobiles innovantes qui répondent précisément à vos besoins.",
-        "Notre équipe de développeurs expérimentés utilise les technologies les plus récentes pour créer des applications performantes, évolutives et conviviales qui se démarquent sur le marché."
+        "Concrétisez vos projets territoriaux avec nos services de développement d'expériences immersives sur mesure. Nous concevons des sites expérientiels et applications qui favorisent l'exploration active, la compréhension sensible et la co-construction des espaces.",
+        "Notre équipe utilise les technologies les plus récentes pour créer des parcours virtuels interactifs qui transforment la façon dont les citoyens, décideurs et parties prenantes interagissent avec le territoire et ses enjeux de développement durable."
       ]}
     />
     
     <ServiceSection
-      title="Nos services de développement"
+      title="Nos solutions immersives"
       services={[
         {
-          title: "Applications web",
-          description: "Développement d'applications web progressives et réactives"
+          title: "Stratégie de contenu territorial",
+          description: "Développement de récits numériques autour de vos projets d'aménagement et initiatives durables"
         },
         {
-          title: "Applications mobiles",
-          description: "Création d'apps natives et hybrides pour iOS et Android"
+          title: "Applications de sensibilisation",
+          description: "Expériences mobiles immersives pour découvrir les enjeux environnementaux locaux"
         },
         {
-          title: "Interfaces 3D",
-          description: "Intégration d'éléments 3D interactifs dans vos applications"
+          title: "Scénario digitaux",
+          description: "Répliques virtuelles interactives de territoires permettant simulation et planification durable"
         }
       ]}
     />
