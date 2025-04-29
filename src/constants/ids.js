@@ -8,7 +8,7 @@ export const BUTTON_IDS = {
   // Boutons principaux
   DATAVIZ: "10ed65d9-e937-4e2a-b159-496a1f8c6750",
   MODEL3D: "3bb0fe33-5c80-49ee-b77b-6161b8379d53",
-  SITE: "2fdc1f0a-fe55-4d37-88ad-c9992bcbad3b",
+  SITE: "0730e331-4ad3-423d-b1d6-8135fe947f02",
   PRESTATIONS: "7677450d-2939-40a9-a882-d790b6fe5562",
   ABOUT: "03abadbe-ea22-44a1-b65f-0aa429eff890",
   PORTFOLIO: "2b7087f7-63f4-4354-9671-390854505976",

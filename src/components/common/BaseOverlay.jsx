@@ -104,17 +104,21 @@ if (!isMobile && !isTablet) {
         
         {showCloseButton && (
           <button 
-            onClick={handleClose}
-            style={{
-              ...overlayStyles.closeButton,
-              ...customStyles.closeButton
-            }}
-            onMouseOver={(e) => e.target.style.background = 'rgba(42, 157, 143, 0.4)'}
-            onMouseOut={(e) => e.target.style.background = 'rgba(42, 157, 143, 0.2)'}
-            aria-label="Fermer"
-          >
-            ✕
-          </button>
+          onClick={(e) => {
+            e.stopPropagation();  // Arrêter la propagation
+            e.preventDefault();   // Empêcher le comportement par défaut
+            handleClose();        // Appeler la fonction de fermeture
+          }}
+          style={{
+            ...overlayStyles.closeButton,
+            ...customStyles.closeButton
+          }}
+          onMouseOver={(e) => e.target.style.background = 'rgba(42, 157, 143, 0.4)'}
+          onMouseOut={(e) => e.target.style.background = 'rgba(42, 157, 143, 0.2)'}
+          aria-label="Fermer"
+        >
+          ✕
+        </button>
         )}
       </div>
       

@@ -41,7 +41,6 @@ export const VIEW_MAPPINGS = {
   contact: {
     buttonId: BUTTON_IDS.MAIL,
     cameraVariablePrefix: 'contact', // Si une position de caméra spécifique existe
-    showOverlay: true, // Indique qu'un overlay doit être affiché
     timeout: 2000
   },
 

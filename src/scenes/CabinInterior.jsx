@@ -80,7 +80,10 @@ export default function CabinInterior() {
   const doorHasBeenOpenedOnce = useRef(false);
   const doorIsOpenRef = useRef(false);
   const proximityCheckRef = useRef(null);
-  
+  const prestationContext = useRef(false);
+  const contactContext = useRef(false);
+  const preventMailTriggerRef = useRef(false);
+
   // Fonction pour ouvrir la porte une seule fois
   const openDoorOnce = useCallback(() => {
     // Vérifier si la porte a déjà été ouverte
@@ -171,6 +174,10 @@ export default function CabinInterior() {
     window.__manualPortfolioButtonClick = false;
     window.__portfolioMode = false;
     window.__doorIsOpen = false;
+    window.__blockC
+    
+    // Réinitialiser notre référence de protection
+  preventMailTriggerRef.current = false;
     
     return () => {
       delete window.__automaticDoorOpening;
@@ -179,6 +186,7 @@ export default function CabinInterior() {
       delete window.__manualPortfolioButtonClick;
       delete window.__portfolioMode;
       delete window.__doorIsOpen;
+      delete window.__blockCameraEvents;
     };
   }, []);
 
@@ -294,7 +302,12 @@ useEffect(() => {
    * Gestion des overlays
    */
   const handleClosePrestationOverlay = useCallback(() => {
+    // Marquer que nous sommes dans un contexte de prestation
+    prestationContext.current = true;
+    
+    // Fermer simplement l'overlay sans animation ni autre action
     setShowPrestationOverlay(false);
+   
   }, []);
   
   const handleCloseAboutOverlay = useCallback(() => {
@@ -302,6 +315,10 @@ useEffect(() => {
   }, []);
 
   const handleCloseContactOverlay = useCallback(() => {
+    // Marquer que nous sommes dans un contexte de contact
+    contactContext.current = true;
+    
+    // Fermer simplement l'overlay sans déclencher d'autres actions
     setShowContactOverlay(false);
   }, []);
   
@@ -312,12 +329,18 @@ useEffect(() => {
     // Fermer tous les overlays
     setShowAboutOverlay(false);
     setShowContactOverlay(false);
-
-    
-    // Si un overlay de prestation est ouvert, le fermer
-    if (showPrestationOverlay) {
-      handleClosePrestationOverlay();
+  
+    // Cas 1: Si un overlay de prestation était récemment ouvert (même s'il a été fermé via la croix)
+    // On utilise une variable pour savoir si on était dans un contexte de prestation
+    if (showPrestationOverlay || prestationContext.current) {
+      // Réinitialiser le contexte de prestation
+      prestationContext.current = false;
       
+      if (showPrestationOverlay) {
+        handleClosePrestationOverlay();
+      }
+      
+
       // Pour les prestations, utiliser une position prédéfinie
       if (splineSceneRef.current && splineSceneRef.current.getSplineInstance) {
         const splineInstance = splineSceneRef.current.getSplineInstance();
@@ -359,8 +382,78 @@ useEffect(() => {
       }
       return;
     }
+
+    // Cas 2: Si un overlay de contact était récemment ouvert (même s'il a été fermé via la croix)
+    if (showContactOverlay || contactContext.current) {
+      // Réinitialiser le contexte de contact
+      contactContext.current = false;
+      
+      if (showContactOverlay) {
+        handleCloseContactOverlay();
+      }
+
+      preventMailTriggerRef.current = true;
+      
+      // Pour le contact, utiliser une position FIXE prédéfinie directement ici
+      // au lieu d'essayer de la récupérer depuis les mappages qui pourraient être incorrects
+      if (splineSceneRef.current) {
+        logger.log("Retour depuis l'overlay de contact - utilisation d'une position fixe");
+        
+        // Position fixe pour la vue contact - ajustez ces valeurs selon votre besoin
+        const contactPosition = { x: 0, y: 300, z: -1500 };
+        const contactRotation = { x: 0, y: 0, z: 0 };
+        
+        // Animation directe vers la position contact
+        splineSceneRef.current.animateCamera({
+          position: contactPosition,
+          rotation: contactRotation,
+          duration: 1500
+        });
+        
+        // Après l'animation, réactiver les contrôles et réinitialiser l'UI
+        setTimeout(() => {
+          if (splineSceneRef.current) {
+            // Réactiver les contrôles
+            splineSceneRef.current.restoreControlsOnly();
+if (splineSceneRef.current.toggleCameraControls) {
+  splineSceneRef.current.toggleCameraControls(true);
+}
+            
+            // Réinitialiser le bouton actif
+            const splineInstance = splineSceneRef.current.getSplineInstance();
+            if (splineInstance && activeButtonId) {
+              setTimeout(() => {
+                logger.log(`Émission de l'événement start sur l'objet ${activeButtonId}`);
+                try {
+                  // Bloquer explicitement les événements pour éviter les interférences
+                  window.__blockCameraEvents = true;
+                  splineHelpers.emitEvent(splineInstance, 'start', activeButtonId);
+                  // Débloquer après un court délai
+                  setTimeout(() => {
+                    window.__blockCameraEvents = false;
+                  }, 100);
+                } catch (e) {
+                  logger.error("Erreur lors de la réinitialisation du bouton:", e);
+                }
+              }, 100);
+            }
+            
+            // Réinitialiser l'état de l'UI
+            setShowReturnButton(false);
+            setActiveButtonId(null);
+
+            // IMPORTANT: Désactiver la protection après un délai suffisant
+          // pour que tous les événements se soient terminés
+          setTimeout(() => {
+            preventMailTriggerRef.current = false;
+          }, 500);
+          }
+        }, 1600);
+      }
+      return;
+    }
     
-    // Avant la restauration, vérifier si nous sommes en mode portfolio
+    // Cas 2: Avant la restauration, vérifier si nous sommes en mode portfolio
     const isInPortfolioMode = window.__portfolioMode === true;
     logger.log("Retour à la position précédente, mode portfolio:", isInPortfolioMode);
   
@@ -451,6 +544,8 @@ useEffect(() => {
     const prestaConfig = getDrawerForObjectId(objectId);
     
     if (prestaConfig) {
+
+      prestationContext.current = true;
       // Stocker explicitement les coordonnées actuelles de la caméra
       if (splineSceneRef.current) {
         const camera = splineSceneRef.current.getSplineInstance().camera;
@@ -583,6 +678,14 @@ useEffect(() => {
             setShowAboutOverlay(true);
           }, isMobile ? 1500 : 2000);
         }
+
+        if (view === 'contact') {
+          if (splineSceneRef.current) {
+            splineSceneRef.current.handleButtonClick();
+            // Utiliser animateCameraToView comme pour les autres vues
+            animateCameraToView('contact', BUTTON_IDS.MAIL);
+          }
+        }
       }
     }
   }, [showPrestationOverlay, handleClosePrestationOverlay, animateCameraToView, isMobile]);
@@ -636,11 +739,47 @@ useEffect(() => {
     if (isPrestaDrawer) return;
 
     // Vérification spécifique pour le bouton mail avant la vérification de vue
-if (objectId === 'd366dc0d-a8c9-4b09-a66b-5f978338d2dc' || objectName === 'BUTTON_MAIL') {
-  logger.log("Bouton mail cliqué, affichage de l'overlay de contact");
-  setShowContactOverlay(true);
-  return;
-}
+    if (objectId === BUTTON_IDS.MAIL || objectName === 'BUTTON_MAIL') {
+      if (preventMailTriggerRef.current) {
+        logger.log("Clic sur bouton mail ignoré (protection anti-boucle active)");
+        return true;
+      }
+      logger.log("Bouton mail cliqué, affichage de l'overlay de contact");
+      
+      // Définir le contexte de contact
+      contactContext.current = true;
+      
+      // Sauvegarder la position actuelle de la caméra si nécessaire
+      if (splineSceneRef.current) {
+        const camera = splineSceneRef.current.getSplineInstance().camera;
+        if (camera) {
+          setLastCameraPosition({
+            position: {
+              x: camera.position.x,
+              y: camera.position.y,
+              z: camera.position.z
+            },
+            rotation: {
+              x: camera.rotation.x,
+              y: camera.rotation.y,
+              z: camera.rotation.z
+            }
+          });
+        }
+      }
+      
+      // Afficher l'overlay de contact
+      setShowContactOverlay(true);
+      
+      // Afficher le bouton de retour
+      setShowReturnButton(true);
+
+        // Fixer l'ID du bouton actif
+  setActiveButtonId(BUTTON_IDS.MAIL);
+      
+      return; // Important: arrêter le traitement ici
+    }
+    
     
     // Déterminer la vue cible
     const viewConfig = getViewForObjectId(resolvedObjectId);
