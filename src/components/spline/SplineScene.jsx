@@ -18,7 +18,7 @@ const { logger } = debugUtils;
 /**
  * Composant de scène Spline avec contrôles de caméra améliorés
  */
-const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad, qualityLevel }, ref) => {
+const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad, qualityLevel, useCustomTouchControls }, ref) => {
   const splineRef = useRef(null);
   const cameraRef = useRef(null);
   const lastClickedButtonRef = useRef(null);
@@ -28,6 +28,7 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
     initializeCamera,
     handleWheel,
     handleMouseMove,
+    handleTouchMove,
     handleButtonClick,
     restorePreviousCameraState,
     moveCamera,
@@ -81,60 +82,31 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
     // Gestion des contrôles de caméra
     handleButtonClick,
     handleWheel, 
+    // Gestionnaire souris - traite uniquement les événements souris
     handleMouseMove: (e) => {
-      // Détecter si l'événement vient d'un appareil tactile
-      const isTouchEvent = e.isTouchEvent === true || e.type === 'touchmove';
-      
-      // Si c'est un événement tactile généré par useTouchControls, le passer directement
-      // car il contient déjà les valeurs normalisées correctes
-      if (isTouchEvent && e.normalizedX !== undefined) {
-        // On peut ajouter un petit log pour le débogage si nécessaire
-        // console.log("Événement tactile avec normalizedX:", e.normalizedX);
-        
-        // Passer l'événement tactile tel quel à handleMouseMove
-        handleMouseMove(e);
+      // Ignorer complètement les événements tactiles
+      if (e.touches || e.isTouchEvent || e.type === 'touchmove') {
         return;
       }
       
-      // Pour les événements de souris ou les événements tactiles simples (sans normalizedX),
-      // nous pouvons appliquer un léger lissage
-      if (!isTouchEvent) {
-        // Référence statique pour stocker les valeurs précédentes de la souris
-        if (!handleMouseMove.prevMouseX) {
-          handleMouseMove.prevMouseX = 0;
-          handleMouseMove.prevMouseY = 0;
-        }
-        
-        // Normaliser les coordonnées de souris (-1 à 1)
-        const normalizedX = (e.clientX / window.innerWidth) * 2 - 1;
-        const normalizedY = (e.clientY / window.innerHeight) * 2 - 1;
-        
-        // Appliquer un léger lissage pour les mouvements de souris
-        const smoothingFactor = 0.2; // Plus petit que pour les événements tactiles
-        
-        const smoothedX = handleMouseMove.prevMouseX * (1 - smoothingFactor) + 
-                           normalizedX * smoothingFactor;
-        const smoothedY = handleMouseMove.prevMouseY * (1 - smoothingFactor) + 
-                           normalizedY * smoothingFactor;
-        
-        // Mettre à jour les valeurs précédentes
-        handleMouseMove.prevMouseX = smoothedX;
-        handleMouseMove.prevMouseY = smoothedY;
-        
-        // Créer un événement filtré
-        const filteredEvent = {
-          ...e,
-          normalizedX: smoothedX,
-          normalizedY: smoothedY
-        };
-        
-        // Passer l'événement filtré
-        handleMouseMove(filteredEvent);
-        return;
-      }
-      
-      // Si c'est un événement tactile simple, le passer tel quel
+      // Traitement normal des événements souris
       handleMouseMove(e);
+    },
+    
+    // Gestionnaire tactile - point unique de gestion des événements tactiles
+    handleTouchMove: (e) => {
+      // S'assurer que c'est bien un événement tactile
+      if (!e.touches) {
+        return;
+      }
+      
+      // Si des contrôles tactiles personnalisés sont actifs, ne rien faire
+      if (useCustomTouchControls || window.__advancedTouchControlsActive) {
+        return;
+      }
+      
+      // Passer directement l'événement tactile brut
+      handleTouchMove(e);
     },
   
     restorePreviousCameraState,
@@ -376,52 +348,42 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
   
   return (
     <div
-  style={{
-    width: '100vw',
-    height: '100vh',
-    position: 'relative'
-  }}
-  onWheel={handleWheel}
+      style={{
+        width: '100vw',
+        height: '100vh',
+        position: 'relative'
+      }}
+      onWheel={handleWheel}
     onMouseMove={handleMouseMove}
-    // Modifier les écouteurs d'événements tactiles
     onTouchStart={(e) => {
       // Ne pas appeler preventDefault() ici
     }}
     onTouchMove={(e) => {
       if (e.touches.length === 1) {
-        const touch = e.touches[0];
-      
-      // Créer un événement normalisé
-      const touchEvent = {
-        clientX: touch.clientX,
-        clientY: touch.clientY,
-        normalizedX: (touch.clientX / window.innerWidth) * 2 - 1,
-        normalizedY: (touch.clientY / window.innerHeight) * 2 - 1,
-        isTouchEvent: true,
-        type: 'touchmove'
-      };
-      
-      // Appeler la fonction handleMouseMove existante
-      handleMouseMove(touchEvent);
-    }
-  }}
-  onTouchEnd={(e) => {
+        // Utiliser le gestionnaire tactile dédié
+        handleTouchMove(e);
+      }
     }}
->
-  <Spline
-    scene={scenePath}
-    onLoad={onLoad}
-    onSplineMouseUp={onSplineMouseUp}
-  />
-</div>
-  );
+    onTouchEnd={(e) => {
+      // Gestionnaire pour les fins de toucher si nécessaire
+    }}
+  >
+    <Spline
+      scene={scenePath}
+      onLoad={onLoad}
+      onSplineMouseUp={onSplineMouseUp}
+    />
+  </div>
+);
 });
 
+// Déplacer les PropTypes et l'export en dehors du composant
 SplineScene.propTypes = {
   scenePath: PropTypes.string.isRequired,
   onObjectClick: PropTypes.func,
   onLoad: PropTypes.func,
-  qualityLevel: PropTypes.string
+  qualityLevel: PropTypes.string,
+  useCustomTouchControls: PropTypes.bool
 };
 
 export default SplineScene;

@@ -334,46 +334,30 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
     }
   }, [controlsEnabled, invertMovementDirection]);
   /**
-   * Gère le mouvement de la souris pour orienter la caméra
-   * @param {MouseEvent} e - Événement de mouvement de souris
-   */
-  const handleMouseMove = useCallback((e) => {
-    if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
-    
-    // Détecter si l'événement vient d'un appareil tactile
-    const isTouchEvent = e.isTouchEvent === true || e.type === 'touchmove';
-    
-    // Permission spéciale pour les événements tactiles sur la terrasse
-  const allowTouchOnTerrace = isTouchEvent;
-
-    // Traitement spécial pour les événements swipeDelta
-  if (e.swipeDelta === true) {
-    // Appliquer directement le delta à la rotation
-    targetRotation.current.y += e.normalizedX;
+ * Gère uniquement les mouvements de souris - ne doit jamais traiter d'événements tactiles
+ * @param {MouseEvent} e - Événement souris standard
+ */
+const handleMouseMove = useCallback((e) => {
+  // Ignorer complètement les événements tactiles
+  if (e.isTouchEvent === true || e.type === 'touchmove' || e.touches) {
     return;
   }
   
-  // Vérifier si on est sur la terrasse et si on doit ignorer l'événement
-  if (isOnTerrace.current && !allowTouchOnTerrace && !hasPerformedFirstTurn.current) {
-    return;
-  }
-    
-    // Normaliser la position de la souris entre -1 et 1
-  const x = e.normalizedX || (e.clientX / window.innerWidth) * 2 - 1;
-  const y = e.normalizedY || (e.clientY / window.innerHeight) * 2 - 1;
+  if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
   
-
-  // Appliquer la courbe de réponse pour un mouvement plus précis au centre
+  // Normaliser la position de la souris entre -1 et 1
+  const x = (e.clientX / window.innerWidth) * 2 - 1;
+  const y = (e.clientY / window.innerHeight) * 2 - 1;
+  
+  // Appliquer la courbe de réponse pour un mouvement plus précis
   const xModified = Math.sign(x) * Math.pow(Math.abs(x), 1.2);
   const yModified = Math.sign(y) * Math.pow(Math.abs(y), 1.3);
   
-  // Calcul de la distance du curseur par rapport au centre HORIZONTAL uniquement
+  // Calcul de la distance du curseur par rapport au centre
   const distanceFromCenterX = Math.abs(xModified);
   
-  // Réduire l'offset de position pour un effet moins prononcé
+  // Calculer les offsets de position
   const posOffsetX = xModified * config.maxPositionOffset * 1.2;
-  
-  // Réduire le mouvement vertical quand on s'éloigne du centre horizontal
   const verticalFactor = Math.max(0, 1 - (distanceFromCenterX / config.centerWidthZone));
   const posOffsetY = -yModified * config.maxPositionOffset * 0.4 * verticalFactor;
   
@@ -384,36 +368,82 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
   // Base de rotation selon la direction du mouvement
   const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
   
-  // Calcul des rotations
-  // Pour les événements tactiles, ne pas inverser la direction
-if (isTouchEvent) {
+  // Pour la souris, standard: inversion du mouvement
   targetRotation.current.y = baseAngle + (-xModified * config.maxSideRotation);
-} else {
-  // Pour la souris, garder l'inversion
-  targetRotation.current.y = baseAngle + (-xModified * config.maxSideRotation);
-}
   
-  // Rotation verticale (X) - uniquement dans la zone centrale horizontale
+  // Rotation verticale (X) adaptée à la direction
   if (movementDirection.current > 0) {
-    // Direction normale (avant)
     targetRotation.current.x = -yModified * config.maxVerticalAngle * verticalFactor;
   } else {
-    // Direction inversée (arrière)
     targetRotation.current.x = yModified * config.maxVerticalAngle * verticalFactor;
   }
   
   // Assurer que la rotation Z reste à 0
   targetRotation.current.z = 0;
-
-  // Ajouter un log pour voir les valeurs de rotation appliquées
-  if (isTouchEvent) {
-    logger.log("Rotation caméra tactile appliquée:", {
-      rotationY: targetRotation.current.y,
-      xModified: xModified
-    });
-  }
 }, [controlsEnabled, config.maxPositionOffset, config.centerWidthZone, config.maxSideRotation, config.maxVerticalAngle]);
+
+/**
+ * Gère exclusivement les événements tactiles
+ * @param {TouchEvent} e - Événement tactile natif
+ */
+const handleTouchMove = useCallback((e) => {
+  if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
   
+  // Traiter uniquement les événements tactiles à un doigt
+  if (!e.touches || e.touches.length !== 1) return;
+  
+  // Vérifier si on est sur la terrasse et si on n'a pas encore fait de demi-tour
+  if (isOnTerrace.current && !hasPerformedFirstTurn.current) {
+    return;
+  }
+  
+  const touch = e.touches[0];
+  
+  // Si nous avons des TouchControls personnalisés actifs, ne rien faire
+  if (window.__touchControlsActive === true) {
+    return;
+  }
+  
+  // Normaliser la position entre -1 et 1
+  const normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
+  const normalizedY = (touch.clientY / window.innerHeight) * 2 - 1;
+  
+  // Appliquer la courbe de réponse pour un mouvement plus naturel
+  const xModified = Math.sign(normalizedX) * Math.pow(Math.abs(normalizedX), 1.2);
+  const yModified = Math.sign(normalizedY) * Math.pow(Math.abs(normalizedY), 1.3);
+  
+  // Calcul de la distance par rapport au centre
+  const distanceFromCenterX = Math.abs(xModified);
+  
+  // Position avec offset proportionnel au mouvement
+  const posOffsetX = xModified * config.maxPositionOffset;
+  const verticalFactor = Math.max(0, 1 - (distanceFromCenterX / config.centerWidthZone));
+  const posOffsetY = -yModified * config.maxPositionOffset * 0.4 * verticalFactor;
+  
+  // Appliquer à la position cible
+  targetPosition.current.x = initialPosition.current.x + posOffsetX;
+  targetPosition.current.y = initialPosition.current.y + posOffsetY;
+  
+  // Base de rotation selon la direction
+  const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
+  
+  // Pour le tactile: mouvement naturel par défaut (pas d'inversion)
+  targetRotation.current.y = baseAngle + (xModified * config.maxSideRotation);
+  
+  // Rotation verticale adaptée à la direction
+  if (movementDirection.current > 0) {
+    targetRotation.current.x = -yModified * config.maxVerticalAngle * verticalFactor;
+  } else {
+    targetRotation.current.x = yModified * config.maxVerticalAngle * verticalFactor;
+  }
+  
+  // Assurer que Z reste à 0
+  targetRotation.current.z = 0;
+  
+  // Pas besoin de logger à chaque mouvement, uniquement pour le debug
+  // logger.log("Touch move traité par handleTouchMove natif");
+}, [controlsEnabled, isOnTerrace, hasPerformedFirstTurn]);
+
   /**
    * Sauvegarde l'état actuel de la caméra
    */
@@ -705,6 +735,7 @@ if (isTouchEvent) {
     initializeCamera,
     handleWheel,
     handleMouseMove,
+    handleTouchMove,
     handleButtonClick,
     restorePreviousCameraState,
     moveCamera,

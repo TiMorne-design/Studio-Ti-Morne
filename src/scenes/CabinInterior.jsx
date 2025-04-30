@@ -1,6 +1,6 @@
 /**
  * Composant principal pour l'intérieur du chalet
- * Optimisé pour desktop et mobile
+ * Optimisé pour desktop et mobile avec contrôles tactiles améliorés
  */
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -46,7 +46,6 @@ const { logger } = debugUtils;
 export default function CabinInterior() {
   const navigate = useNavigate();
   const splineSceneRef = useRef(null);
-  const touchControlsRef = useRef(null);
   
   // Détection de l'appareil
   const { 
@@ -83,6 +82,10 @@ export default function CabinInterior() {
   const prestationContext = useRef(false);
   const contactContext = useRef(false);
   const preventMailTriggerRef = useRef(false);
+  const touchControlsRef = useRef(null);
+
+  // Utiliser le hook de déclenchement de porte
+  const { triggerDoor } = useDoorTrigger({ splineRef: splineSceneRef });
 
   // Fonction pour ouvrir la porte une seule fois
   const openDoorOnce = useCallback(() => {
@@ -163,9 +166,6 @@ export default function CabinInterior() {
     return false;
   }, [openDoorOnce]);
 
-  // Utiliser le hook de déclenchement de porte
-  const { triggerDoor } = useDoorTrigger({ splineRef: splineSceneRef });
-
   // Initialiser les variables globales
   useEffect(() => {
     window.__automaticDoorOpening = false;
@@ -174,10 +174,10 @@ export default function CabinInterior() {
     window.__manualPortfolioButtonClick = false;
     window.__portfolioMode = false;
     window.__doorIsOpen = false;
-    window.__blockC
+    window.__blockCameraEvents = false;
     
     // Réinitialiser notre référence de protection
-  preventMailTriggerRef.current = false;
+    preventMailTriggerRef.current = false;
     
     return () => {
       delete window.__automaticDoorOpening;
@@ -189,6 +189,86 @@ export default function CabinInterior() {
       delete window.__blockCameraEvents;
     };
   }, []);
+
+  // Initialiser les contrôles tactiles sur mobile/tablette
+  useEffect(() => {
+    if (!isMobile && !isTablet) return;
+    
+    // Attendre que Spline soit chargé
+    if (!splineSceneRef.current || !splineSceneRef.current.getSplineInstance) {
+      return;
+    }
+    
+    const initializeTouchControls = () => {
+      const splineInstance = splineSceneRef.current.getSplineInstance();
+      if (!splineInstance || !splineInstance.camera) {
+        // Réessayer après un court délai si pas encore prêt
+        setTimeout(initializeTouchControls, 500);
+        return;
+      }
+      
+      // Approche en deux temps pour désactiver complètement les contrôles standards
+      // 1. Désactiver via l'API publique toggleCameraControls
+      if (splineSceneRef.current.toggleCameraControls) {
+        logger.log("Désactivation COMPLÈTE des contrôles de caméra standards pour le tactile");
+        splineSceneRef.current.toggleCameraControls(false);
+      }
+      
+      // 2. Forcer la désactivation au niveau de useCameraControls directement
+      if (splineSceneRef.current._setCameraControlsEnabled) {
+        splineSceneRef.current._setCameraControlsEnabled(false);
+      }
+      
+      // 3. Définir une variable globale pour bloquer le traitement des événements tactiles 
+      // dans useCameraControls
+      window.__touchControlsActive = true;
+      
+      // Configurer les contrôles tactiles directs avec des paramètres optimisés
+      const touchControls = TouchControls({
+        cameraRef: splineInstance.camera,
+        splineRef: splineInstance,
+        sensitivity: isMobile ? 2.0 : 1.8,  // Augmenter légèrement la sensibilité
+        threshold: 3,                        // Réduire le seuil pour une réponse plus rapide
+        inertiaEnabled: true,
+        invertSwipe: true                    // true = direction naturelle
+      });
+      
+      // IMPORTANT: Attacher les contrôles tactiles personnalisés au document entier
+      // pour une meilleure capture (ceci est crucial)
+      const cleanup = touchControls.attachTouchListeners(document);
+      
+      // Mettre à jour la référence
+      touchControlsRef.current = { 
+        stopInertia: touchControls.stopInertia,
+        cleanup 
+      };
+      
+      // Injecter une fonction globale pour arrêter l'inertie
+      window.__stopTouchInertia = () => {
+        if (touchControlsRef.current && touchControlsRef.current.stopInertia) {
+          touchControlsRef.current.stopInertia();
+          console.log("Arrêt forcé de l'inertie tactile");
+        }
+      };
+      
+      logger.log("Contrôles tactiles directs initialisés avec succès (direction naturelle)");
+    };
+    
+    // Lancer l'initialisation
+    initializeTouchControls();
+    
+    return () => {
+      // Nettoyer lors du démontage
+      if (touchControlsRef.current && touchControlsRef.current.cleanup) {
+        touchControlsRef.current.cleanup();
+      }
+      
+      // Supprimer les variables globales
+      delete window.__stopTouchInertia;
+      delete window.__touchControlsActive;
+      delete window.__invertTouchControls;
+    };
+  }, [isMobile, isTablet]);
 
   // Effet pour vérifier régulièrement la proximité de la porte
   useEffect(() => {
@@ -224,37 +304,24 @@ export default function CabinInterior() {
     };
   }, [checkAndTriggerDoor]);
 
-  // Ajoutez cet effet après les autres useEffect
-useEffect(() => {
   // Afficher l'écran de chargement pendant 5 secondes
-  const timer = setTimeout(() => {
-    setIsSplineLoading(false);
-  }, 5000);
-  
-  return () => clearTimeout(timer);
-}, []);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsSplineLoading(false);
+    }, 5000);
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   /**
    * Gestion du défilement pour avancer/reculer
+   * Uniquement pour desktop
    */
   const handleWheel = useCallback((e) => {
-    if (splineSceneRef.current) {
+    if (splineSceneRef.current && !isMobile && !isTablet) {
       splineSceneRef.current.handleWheel(e);
     }
-  }, []);
-  
-  // Utiliser le hook des contrôles tactiles
-  const { attachTouchListeners, stopInertia } = TouchControls({
-    onMouseMove: (e) => {
-      if (splineSceneRef.current) {
-        splineSceneRef.current.handleMouseMove(e);
-      }
-    },
-    sensitivity: isMobile ? 1.8 : 1.2
-  });
-  
-  // Stockez ces fonctions dans la référence
-  touchControlsRef.current = { stopInertia };
+  }, [isMobile, isTablet]);
   
   /**
    * Actions pour les boutons de navigation mobile
@@ -297,6 +364,13 @@ useEffect(() => {
       console.error("Erreur lors du déplacement vers l'arrière:", error);
     }
   }, []);
+
+  const handleMouseMove = useCallback((e) => {
+    // Uniquement pour le bureau - vérifié au niveau du rendu également
+    if (!isMobile && !isTablet && splineSceneRef.current) {
+      splineSceneRef.current.handleMouseMove(e);
+    }
+  }, [isMobile, isTablet]);
   
   /**
    * Gestion des overlays
@@ -340,7 +414,6 @@ useEffect(() => {
         handleClosePrestationOverlay();
       }
       
-
       // Pour les prestations, utiliser une position prédéfinie
       if (splineSceneRef.current && splineSceneRef.current.getSplineInstance) {
         const splineInstance = splineSceneRef.current.getSplineInstance();
@@ -415,9 +488,9 @@ useEffect(() => {
           if (splineSceneRef.current) {
             // Réactiver les contrôles
             splineSceneRef.current.restoreControlsOnly();
-if (splineSceneRef.current.toggleCameraControls) {
-  splineSceneRef.current.toggleCameraControls(true);
-}
+            if (splineSceneRef.current.toggleCameraControls) {
+              splineSceneRef.current.toggleCameraControls(true);
+            }
             
             // Réinitialiser le bouton actif
             const splineInstance = splineSceneRef.current.getSplineInstance();
@@ -443,17 +516,17 @@ if (splineSceneRef.current.toggleCameraControls) {
             setActiveButtonId(null);
 
             // IMPORTANT: Désactiver la protection après un délai suffisant
-          // pour que tous les événements se soient terminés
-          setTimeout(() => {
-            preventMailTriggerRef.current = false;
-          }, 500);
+            // pour que tous les événements se soient terminés
+            setTimeout(() => {
+              preventMailTriggerRef.current = false;
+            }, 500);
           }
         }, 1600);
       }
       return;
     }
     
-    // Cas 2: Avant la restauration, vérifier si nous sommes en mode portfolio
+    // Cas 3: Avant la restauration, vérifier si nous sommes en mode portfolio
     const isInPortfolioMode = window.__portfolioMode === true;
     logger.log("Retour à la position précédente, mode portfolio:", isInPortfolioMode);
   
@@ -534,7 +607,7 @@ if (splineSceneRef.current.toggleCameraControls) {
         setActiveButtonId(null);
       }
     }
-  }, [showPrestationOverlay, handleClosePrestationOverlay, activeButtonId]);
+  }, [showPrestationOverlay, handleClosePrestationOverlay, activeButtonId, showContactOverlay, handleCloseContactOverlay]);
   
   /**
    * Gère les clics sur les tiroirs de prestation
@@ -544,7 +617,6 @@ if (splineSceneRef.current.toggleCameraControls) {
     const prestaConfig = getDrawerForObjectId(objectId);
     
     if (prestaConfig) {
-
       prestationContext.current = true;
       // Stocker explicitement les coordonnées actuelles de la caméra
       if (splineSceneRef.current) {
@@ -655,9 +727,6 @@ if (splineSceneRef.current.toggleCameraControls) {
     }
 
     setShowContactOverlay(false);
-    if (showPrestationOverlay) {
-      handleClosePrestationOverlay();
-    }
     
     // Obtenir l'instance Spline
     if (splineSceneRef.current) {
@@ -774,8 +843,8 @@ if (splineSceneRef.current.toggleCameraControls) {
       // Afficher le bouton de retour
       setShowReturnButton(true);
 
-        // Fixer l'ID du bouton actif
-  setActiveButtonId(BUTTON_IDS.MAIL);
+      // Fixer l'ID du bouton actif
+      setActiveButtonId(BUTTON_IDS.MAIL);
       
       return; // Important: arrêter le traitement ici
     }
@@ -854,9 +923,8 @@ if (splineSceneRef.current.toggleCameraControls) {
         }
         animateCameraToView(viewConfig.viewName, viewConfig.buttonId, true);
       }
-
     }
-  }, [handlePrestaButtonClick, animateCameraToView, isMobile, showMobileGuide]);
+  }, [handlePrestaButtonClick, animateCameraToView, isMobile, showMobileGuide, navigate]);
 
   /**
    * Modifie le niveau de qualité
@@ -876,69 +944,6 @@ if (splineSceneRef.current.toggleCameraControls) {
     }
   }, [isMobile, showMobileGuide]);
   
-  // Ajoutez cette fonction dans CabinInterior.jsx
-// avant l'effet d'initialisation des contrôles tactiles
-
-/**
- * Initialise les contrôles tactiles avec des options adaptées au dispositif
- */
-const initializeTouchControls = useCallback(() => {
-  if (!isMobile && !isTablet) return;
-  
-  // Obtenir la densité de pixels pour ajuster la sensibilité
-  const pixelRatio = window.devicePixelRatio || 1;
-  
-  // Ajuster la sensibilité en fonction de la taille d'écran et de la densité de pixels
-  let touchSensitivity = 1.5; // Valeur de base
-  
-  // Réduire la sensibilité sur les petits écrans à haute densité
-  if (window.innerWidth < 400 && pixelRatio > 2) {
-    touchSensitivity = 1.5;
-  } 
-  // Réduire légèrement sur les tablettes
-  else if (isTablet) {
-    touchSensitivity = 1.6;
-  }
-  
-  // Vérifier l'orientation
-  if (isLandscape) {
-    // Réduire encore plus en mode paysage
-    touchSensitivity *= 0.95;
-  }
-  
-  logger.log("Initialisation des contrôles tactiles:", {
-    sensibilité: touchSensitivity,
-    appareil: isMobile ? "mobile" : "tablette",
-    orientation: isLandscape ? "paysage" : "portrait",
-    pixelRatio
-  });
-  
-  // Appliquer les contrôles tactiles à la fenêtre entière, pas juste au root
-  // Cela évite les problèmes de propagation des événements
-  const cleanup = attachTouchListeners(window);
-  
-  // Injecter une fonction globale pour forcer la fin de l'inertie si nécessaire
-  window.__stopTouchInertia = () => {
-    if (touchControlsRef.current && touchControlsRef.current.stopInertia) {
-      touchControlsRef.current.stopInertia();
-      console.log("Arrêt forcé de l'inertie tactile");
-    }
-  };
-  
-  return () => {
-    cleanup();
-    delete window.__stopTouchInertia;
-  };
-}, [isMobile, isTablet, isLandscape, attachTouchListeners]);
-
-
-useEffect(() => {
-  // Ne pas initialiser TouchControls du tout
-  // Nous utiliserons uniquement le mécanisme de suivi direct du doigt
-  console.log("Contrôles tactiles avec swipe/inertie désactivés");
-}, []);
-  
-      
   // Si l'appareil est trop peu puissant, afficher l'expérience allégée
   const preferFullExperience = localStorage.getItem('preferFullExperience') === 'true';
   if (isLowPerformance && !preferFullExperience) {
@@ -966,12 +971,18 @@ useEffect(() => {
   }
   
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100vh' }}>
+    <div 
+      style={{ position: 'relative', width: '100%', height: '100vh' }}
+      onWheel={isMobile || isTablet ? null : handleWheel}
+      onMouseMove={isMobile || isTablet ? null : handleMouseMove}
+          >
       <SplineScene
         ref={splineSceneRef}
         scenePath="https://prod.spline.design/caI3XJc8z6B-FFGA/scene.splinecode"
         onObjectClick={handleObjectClick}
         qualityLevel={qualityLevel}
+        // Ajouter une prop pour indiquer que nous utilisons des contrôles tactiles personnalisés
+        useCustomTouchControls={isMobile || isTablet}
       />
       
       {/* Navigation adaptative */}
@@ -1012,36 +1023,34 @@ useEffect(() => {
         />
       )}
 
-{showContactOverlay && (
-  <ContactOverlay 
-    onClose={handleCloseContactOverlay}
-    isMobile={isMobile}
-  />
-)}
-
+      {showContactOverlay && (
+        <ContactOverlay 
+          onClose={handleCloseContactOverlay}
+          isMobile={isMobile}
+        />
+      )}
         
       {/* Guide de swipe sur mobile */}
       {(isMobile || isTablet) && showMobileGuide && (
         <div className="mobile-guide">
           <div className="mobile-guide-content">
-            <p>Glissez vers le haut/bas pour vous déplacer</p>
-            <p>Tapez sur les objets pour interagir</p>
+            <p>Glissez horizontalement pour regarder autour de vous</p>
+            <p>Utilisez les flèches pour vous déplacer</p>
           </div>
         </div>
       )}
       
-     
-{/* Contrôles de mouvement sur mobile - masqués quand un overlay est affiché */}
-{(isMobile || isTablet) && 
-  !showAboutOverlay && 
-  !showPrestationOverlay && 
-  !showContactOverlay &&  (
-    <MobileControls
-      onMoveForward={handleMoveForward}
-      onMoveBackward={handleMoveBackward}
-    />
-  )
-}
+      {/* Contrôles de mouvement sur mobile - masqués quand un overlay est affiché */}
+      {(isMobile || isTablet) && 
+        !showAboutOverlay && 
+        !showPrestationOverlay && 
+        !showContactOverlay && (
+          <MobileControls
+            onMoveForward={handleMoveForward}
+            onMoveBackward={handleMoveBackward}
+          />
+        )
+      }
         
       {/* Sélecteur de qualité pour les appareils mobiles */}
       {(isMobile || isTablet) && (
@@ -1068,62 +1077,61 @@ useEffect(() => {
       )}
 
       {/* Écran de chargement personnalisé */}
-{isSplineLoading && (
-  <div style={{
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    backgroundImage: `url('./images/scene-preview.png')`,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1500 // Au-dessus de tout sauf des overlays
-  }}>
-    <div style={{
-      position: 'absolute',
-      bottom: '50px',
-      width: '300px',
-      textAlign: 'center'
-    }}>
-      <p style={{
-        color: 'white',
-        fontSize: '16px',
-        marginBottom: '15px',
-        textShadow: '0 1px 3px rgba(0,0,0,0.7)'
-      }}>
-        Chargement de la scène 3D...
-      </p>
-      <div style={{
-        width: '100%',
-        height: '4px',
-        backgroundColor: 'rgba(255,255,255,0.3)',
-        borderRadius: '2px',
-        overflow: 'hidden'
-      }}>
+      {isSplineLoading && (
         <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
           height: '100%',
-          width: '30%',
-          backgroundColor: '#2A9D8F',
-          borderRadius: '2px',
-          animation: 'loading-progress 1.5s infinite ease-in-out'
-        }}/>
-      </div>
-    </div>
-    <style>{`
-      @keyframes loading-progress {
-        0% { width: 0%; margin-left: 0; }
-        50% { width: 70%; margin-left: 0; }
-        100% { width: 30%; margin-left: 70%; }
-      }
-    `}</style>
-  </div>
-)}
-
+          backgroundImage: `url('./images/scene-preview.png')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1500 // Au-dessus de tout sauf des overlays
+        }}>
+          <div style={{
+            position: 'absolute',
+            bottom: '50px',
+            width: '300px',
+            textAlign: 'center'
+          }}>
+            <p style={{
+              color: 'white',
+              fontSize: '16px',
+              marginBottom: '15px',
+              textShadow: '0 1px 3px rgba(0,0,0,0.7)'
+            }}>
+              Chargement de la scène 3D...
+            </p>
+            <div style={{
+              width: '100%',
+              height: '4px',
+              backgroundColor: 'rgba(255,255,255,0.3)',
+              borderRadius: '2px',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                height: '100%',
+                width: '30%',
+                backgroundColor: '#2A9D8F',
+                borderRadius: '2px',
+                animation: 'loading-progress 1.5s infinite ease-in-out'
+              }}/>
+            </div>
+          </div>
+          <style>{`
+            @keyframes loading-progress {
+              0% { width: 0%; margin-left: 0; }
+              50% { width: 70%; margin-left: 0; }
+              100% { width: 30%; margin-left: 70%; }
+            }
+          `}</style>
+        </div>
+      )}
     </div>
   );
 }
