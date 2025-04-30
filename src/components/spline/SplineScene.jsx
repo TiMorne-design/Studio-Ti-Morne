@@ -359,8 +359,8 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
       // Ne pas appeler preventDefault() ici
     }}
     onTouchMove={(e) => {
-      if (e.touches.length === 1) {
-        // Utiliser le gestionnaire tactile dédié
+      // Transmettre tous les événements tactiles à handleTouchMove
+      if (e.touches) {
         handleTouchMove(e);
       }
     }}

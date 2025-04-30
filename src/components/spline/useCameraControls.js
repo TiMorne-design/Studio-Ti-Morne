@@ -382,8 +382,9 @@ const handleMouseMove = useCallback((e) => {
   targetRotation.current.z = 0;
 }, [controlsEnabled, config.maxPositionOffset, config.centerWidthZone, config.maxSideRotation, config.maxVerticalAngle]);
 
+
 /**
- * Gère exclusivement les événements tactiles
+ * Gère les événements tactiles pour tous les appareils
  * @param {TouchEvent} e - Événement tactile natif
  */
 const handleTouchMove = useCallback((e) => {
@@ -399,18 +400,16 @@ const handleTouchMove = useCallback((e) => {
   
   const touch = e.touches[0];
   
-  // Si nous avons des TouchControls personnalisés actifs, ne rien faire
-  if (window.__touchControlsActive === true) {
-    return;
-  }
-  
   // Normaliser la position entre -1 et 1
   const normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
   const normalizedY = (touch.clientY / window.innerHeight) * 2 - 1;
   
+  // Paramètres configurables
+  const sensitivity = window.__touchSensitivity || 1.5; // Utiliser une valeur globale si définie
+  
   // Appliquer la courbe de réponse pour un mouvement plus naturel
-  const xModified = Math.sign(normalizedX) * Math.pow(Math.abs(normalizedX), 1.2);
-  const yModified = Math.sign(normalizedY) * Math.pow(Math.abs(normalizedY), 1.3);
+  const xModified = Math.sign(normalizedX) * Math.pow(Math.abs(normalizedX), 1.2) * sensitivity;
+  const yModified = Math.sign(normalizedY) * Math.pow(Math.abs(normalizedY), 1.3) * sensitivity;
   
   // Calcul de la distance par rapport au centre
   const distanceFromCenterX = Math.abs(xModified);
@@ -439,10 +438,7 @@ const handleTouchMove = useCallback((e) => {
   
   // Assurer que Z reste à 0
   targetRotation.current.z = 0;
-  
-  // Pas besoin de logger à chaque mouvement, uniquement pour le debug
-  // logger.log("Touch move traité par handleTouchMove natif");
-}, [controlsEnabled, isOnTerrace, hasPerformedFirstTurn]);
+}, [controlsEnabled, isAfterButtonClick, isOnTerrace, hasPerformedFirstTurn]);
 
   /**
    * Sauvegarde l'état actuel de la caméra

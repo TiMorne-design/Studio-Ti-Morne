@@ -199,76 +199,16 @@ export default function CabinInterior() {
       return;
     }
     
-    const initializeTouchControls = () => {
-      const splineInstance = splineSceneRef.current.getSplineInstance();
-      if (!splineInstance || !splineInstance.camera) {
-        // Réessayer après un court délai si pas encore prêt
-        setTimeout(initializeTouchControls, 500);
-        return;
-      }
-      
-      // Approche en deux temps pour désactiver complètement les contrôles standards
-      // 1. Désactiver via l'API publique toggleCameraControls
-      if (splineSceneRef.current.toggleCameraControls) {
-        logger.log("Désactivation COMPLÈTE des contrôles de caméra standards pour le tactile");
-        splineSceneRef.current.toggleCameraControls(false);
-      }
-      
-      // 2. Forcer la désactivation au niveau de useCameraControls directement
-      if (splineSceneRef.current._setCameraControlsEnabled) {
-        splineSceneRef.current._setCameraControlsEnabled(false);
-      }
-      
-      // 3. Définir une variable globale pour bloquer le traitement des événements tactiles 
-      // dans useCameraControls
-      window.__touchControlsActive = true;
-      
-      // Configurer les contrôles tactiles directs avec des paramètres optimisés
-      const touchControls = TouchControls({
-        cameraRef: splineInstance.camera,
-        splineRef: splineInstance,
-        sensitivity: isMobile ? 2.0 : 1.8,  // Augmenter légèrement la sensibilité
-        threshold: 3,                        // Réduire le seuil pour une réponse plus rapide
-        inertiaEnabled: true,
-        invertSwipe: true                    // true = direction naturelle
-      });
-      
-      // IMPORTANT: Attacher les contrôles tactiles personnalisés au document entier
-      // pour une meilleure capture (ceci est crucial)
-      const cleanup = touchControls.attachTouchListeners(document);
-      
-      // Mettre à jour la référence
-      touchControlsRef.current = { 
-        stopInertia: touchControls.stopInertia,
-        cleanup 
-      };
-      
-      // Injecter une fonction globale pour arrêter l'inertie
-      window.__stopTouchInertia = () => {
-        if (touchControlsRef.current && touchControlsRef.current.stopInertia) {
-          touchControlsRef.current.stopInertia();
-          console.log("Arrêt forcé de l'inertie tactile");
-        }
-      };
-      
-      logger.log("Contrôles tactiles directs initialisés avec succès (direction naturelle)");
-    };
-    
-    // Lancer l'initialisation
-    initializeTouchControls();
+    window.__touchSensitivity = isMobile ? 2.0 : 1.8;
+  
+    logger.log("Utilisation des contrôles tactiles basiques via handleTouchMove");
     
     return () => {
-      // Nettoyer lors du démontage
-      if (touchControlsRef.current && touchControlsRef.current.cleanup) {
-        touchControlsRef.current.cleanup();
-      }
-      
-      // Supprimer les variables globales
-      delete window.__stopTouchInertia;
-      delete window.__touchControlsActive;
-      delete window.__invertTouchControls;
+      // Nettoyer les variables si nécessaires
+      delete window.__touchSensitivity;
     };
   }, [isMobile, isTablet]);
+
 
   // Effet pour vérifier régulièrement la proximité de la porte
   useEffect(() => {
@@ -327,11 +267,7 @@ export default function CabinInterior() {
    * Actions pour les boutons de navigation mobile
    */
   const handleMoveForward = useCallback(() => {
-    // Arrêter l'inertie existante avant de déplacer la caméra
-    if (touchControlsRef.current && touchControlsRef.current.stopInertia) {
-      touchControlsRef.current.stopInertia();
-    }
-  
+      
     if (!splineSceneRef.current) return;
     
     try {
@@ -348,9 +284,7 @@ export default function CabinInterior() {
   
   const handleMoveBackward = useCallback(() => {
     // Arrêter l'inertie existante avant de déplacer la caméra
-    if (touchControlsRef.current && touchControlsRef.current.stopInertia) {
-      touchControlsRef.current.stopInertia();
-    }
+   
     if (!splineSceneRef.current) return;
     
     try {
