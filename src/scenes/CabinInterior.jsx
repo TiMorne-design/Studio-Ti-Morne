@@ -353,7 +353,7 @@ export default function CabinInterior() {
         const splineInstance = splineSceneRef.current.getSplineInstance();
         if (splineInstance) {
           // Position prédéfinie pour la vue "prestations"
-          const prestationsPosition = { x: -200, y: 300, z: 200 };
+          const prestationsPosition = { x: -200, y: 300, z: 800 };
           const prestationsRotation = { x: 0, y: 0, z: 0 };
           
           // Animation directe vers la position prestations
@@ -553,7 +553,7 @@ export default function CabinInterior() {
         logger.log("Navigation depuis toolbar - retour direct à la ligne");
         
         // Position sur la ligne (à adapter selon votre scène)
-        const linePosition = { x: 0, y: 300, z: 500 };
+        const linePosition = { x: -200, y: 300, z: 200 };
         const lineRotation = { x: 0, y: 0, z: 0 };
         
         // Animation directe vers la ligne
@@ -1101,30 +1101,7 @@ export default function CabinInterior() {
         )
       }
         
-      {/* Sélecteur de qualité pour les appareils mobiles */}
-      {(isMobile || isTablet) && (
-        <div className="quality-toggle">
-          <button 
-            className={qualityLevel === 'low' ? 'active' : ''}
-            onClick={() => handleQualityChange('low')}
-          >
-            Basse
-          </button>
-          <button 
-            className={qualityLevel === 'medium' ? 'active' : ''}
-            onClick={() => handleQualityChange('medium')}
-          >
-            Moyenne
-          </button>
-          <button 
-            className={qualityLevel === 'high' ? 'active' : ''}
-            onClick={() => handleQualityChange('high')}
-          >
-            Haute
-          </button>
-        </div>
-      )}
-
+      
       {/* Écran de chargement personnalisé */}
       {isSplineLoading && (
         <div style={{

@@ -316,9 +316,20 @@ const allButtonsHistoryRef = useRef({}); // Stockage de tous les boutons (scène
 const onSplineMouseUp = (e) => {
   if (!e.target) return;
   
+  // Extraire d'abord le nom de l'objet et l'UUID
   const objectName = e.target.name || '';
   const objectUuid = e.target.uuid;
-      
+  
+  // Vérifier si un swipe est actif et bloquer le clic si c'est le cas
+  if (window.__isSwipingActive === true) {
+    logger.log("Clic bloqué car un swipe est actif");
+    
+    // NOUVEAU: Empêcher la propagation et le comportement par défaut
+    if (e.stopPropagation) e.stopPropagation();
+    if (e.preventDefault) e.preventDefault();
+    return;
+  }
+  
   // Obtenir l'ID de l'objet
   const objectId = getObjectId(objectName, objectUuid);
   

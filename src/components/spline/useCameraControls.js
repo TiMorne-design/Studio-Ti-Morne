@@ -360,6 +360,11 @@ const handleMouseMove = useCallback((e) => {
   }
   
   if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
+
+   // Vérifier si on est sur la terrasse et si on doit ignorer l'événement
+   if (isOnTerrace.current && !hasPerformedFirstTurn.current) {
+    return;
+  }
   
   // Normaliser la position de la souris entre -1 et 1
   const x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -404,6 +409,11 @@ const handleMouseMove = useCallback((e) => {
    * Version améliorée avec inertie et transitions plus fluides
    * @param {TouchEvent} e - Événement tactile natif
    */
+/**
+ * Gère les événements tactiles pour tous les appareils
+ * Version améliorée avec blocage des clics accidentels
+ * @param {TouchEvent} e - Événement tactile natif
+ */
 const handleTouchMove = useCallback((e) => {
   if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
   
@@ -437,6 +447,29 @@ const handleTouchMove = useCallback((e) => {
   const deltaTime = Math.max(10, now - state.timestamp); // Éviter les divisions par zéro
   const deltaXFromLast = touch.clientX - state.lastX;
   const deltaYFromLast = touch.clientY - state.lastY;
+  
+  // Vérifier si le mouvement est suffisamment significatif pour être considéré comme un swipe
+  // (généralement 5-10px est un bon seuil)
+  const swipeThreshold = 5;
+  const isSignificantMove = Math.abs(deltaXFromLast) > swipeThreshold || 
+                           Math.abs(deltaYFromLast) > swipeThreshold;
+  
+  if (isSignificantMove) {
+    // Marquer le swipe comme actif pour bloquer les clics accidentels
+    window.__isSwipingActive = true;
+    touchSwipeActiveRef.current = true;
+    
+    // Nettoyer le timer existant s'il y en a un
+    if (touchSwipeTimerRef.current) {
+      clearTimeout(touchSwipeTimerRef.current);
+    }
+    
+    // Définir un nouveau timer pour réinitialiser l'état de swipe
+    touchSwipeTimerRef.current = setTimeout(() => {
+      window.__isSwipingActive = false;
+      touchSwipeActiveRef.current = false;
+    }, 300); // Bloquer les clics pendant 300ms après un swipe
+  }
   
   // Calculer la vélocité (pixels par milliseconde)
   state.velocityX = 0.7 * state.velocityX + 0.3 * (deltaXFromLast / deltaTime);
@@ -492,35 +525,11 @@ const handleTouchMove = useCallback((e) => {
   // Assurer que Z reste à 0
   targetRotation.current.z = 0;
   
-  // Mise à jour de l'inertie pour les contrôles tactiles
-  if (config.inertiaEnabled) {
-    // Stocker les vélocités pour l'inertie
-    inertiaSystem.current.velocityRotY = state.velocityX * 0.001 * sensitivity;
-    inertiaSystem.current.velocityRotX = -state.velocityY * 0.001 * sensitivity * 
-                                       (movementDirection.current > 0 ? 1 : -1);
-    inertiaSystem.current.applyInertia = true;
-  }
-  
   // Mettre à jour la position pour le prochain événement
   state.lastX = touch.clientX;
   state.lastY = touch.clientY;
   state.timestamp = now;
-  
-  // Marquer le swipe comme actif pour bloquer les clics accidentels
-  window.__isSwipingActive = true;
-  touchSwipeActiveRef.current = true;
-  
-  // Nettoyer le timer existant s'il y en a un
-  if (touchSwipeTimerRef.current) {
-    clearTimeout(touchSwipeTimerRef.current);
-  }
-  
-  // Définir un nouveau timer pour réinitialiser l'état de swipe
-  touchSwipeTimerRef.current = setTimeout(() => {
-    window.__isSwipingActive = false;
-    touchSwipeActiveRef.current = false;
-  }, 300);
-}, [controlsEnabled, isAfterButtonClick, isOnTerrace, hasPerformedFirstTurn]);
+}, [controlsEnabled, isAfterButtonClick]);
 
 /**
  * Gère la fin d'un toucher avec inertie
@@ -543,7 +552,7 @@ const handleTouchEnd = useCallback((e) => {
     touchSwipeTimerRef.current = setTimeout(() => {
       window.__isSwipingActive = false;
       touchSwipeActiveRef.current = false;
-    }, 300);
+    }, 500);
   }
 }, []);
 
