@@ -523,10 +523,8 @@ export default function CabinInterior() {
             }
           }
         }
+
       } else {
-        // Cas standard - restaurer l'état précédent normalement
-      splineSceneRef.current.restorePreviousCameraState();
-      
       // Obtenir tous les historiques de boutons
       const toolbarHistory = splineSceneRef.current.getToolbarButtonHistory ? 
         splineSceneRef.current.getToolbarButtonHistory() : [];
@@ -539,6 +537,46 @@ export default function CabinInterior() {
       
       const splineInstance = splineSceneRef.current.getSplineInstance();
       
+      // Déterminer si la navigation vient de la toolbar
+      const lastClickedButton = splineSceneRef.current.getLastClickedButton ? 
+        splineSceneRef.current.getLastClickedButton() : null;
+      
+      // Vérifier si le dernier bouton cliqué est un bouton de toolbar
+      const isFromToolbar = lastClickedButton && 
+        toolbarHistory.includes(lastClickedButton) &&
+        allButtonsHistory[lastClickedButton]?.type === 'toolbar';
+      
+      logger.log(`Dernier bouton cliqué: ${lastClickedButton}, est un bouton de toolbar: ${isFromToolbar}`);
+      
+      if (isFromToolbar) {
+        // Navigation depuis la toolbar - retour direct à la ligne
+        logger.log("Navigation depuis toolbar - retour direct à la ligne");
+        
+        // Position sur la ligne (à adapter selon votre scène)
+        const linePosition = { x: 0, y: 300, z: 500 };
+        const lineRotation = { x: 0, y: 0, z: 0 };
+        
+        // Animation directe vers la ligne
+        splineSceneRef.current.animateCamera({
+          position: linePosition,
+          rotation: lineRotation,
+          duration: 1500,
+          preventAutoReset: true
+        });
+        
+        // Restaurer les contrôles après l'animation
+        setTimeout(() => {
+          if (splineSceneRef.current.restoreControlsOnly) {
+            splineSceneRef.current.restoreControlsOnly();
+          }
+        }, 1600);
+      } else {
+        // Si la navigation ne venait pas de la toolbar, restauration normale
+        logger.log("Navigation standard - restauration de l'état précédent");
+        splineSceneRef.current.restorePreviousCameraState();
+      }
+      
+      // Réinitialiser tous les boutons dans l'ordre chronologique
       if (splineInstance) {
         // Créer un tableau de tous les boutons triés par timestamp
         const allButtonsArray = Object.entries(allButtonsHistory)
@@ -549,7 +587,7 @@ export default function CabinInterior() {
           }))
           .sort((a, b) => a.timestamp - b.timestamp); // Du plus ancien au plus récent
         
-        // Réinitialiser tous les boutons dans l'ordre chronologique
+        // Réinitialiser tous les boutons
         allButtonsArray.forEach((button, index) => {
           setTimeout(() => {
             logger.log(`Réinitialisation du bouton ${button.id} (${button.type}) - position ${index}`);
@@ -587,7 +625,6 @@ export default function CabinInterior() {
     }
   }
 }, [showPrestationOverlay, handleClosePrestationOverlay, activeButtonId, showContactOverlay, handleCloseContactOverlay]);
-
   /**
    * Gère les clics sur les tiroirs de prestation
    */

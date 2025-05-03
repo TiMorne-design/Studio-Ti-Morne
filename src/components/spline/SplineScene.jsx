@@ -220,37 +220,7 @@ const allButtonsHistoryRef = useRef({}); // Stockage de tous les boutons (scène
       return true;
     },
     
-    // Réinitialisation de l'état de la caméra
-    resetCameraState: () => {
-      if (splineRef.current && lastClickedButtonRef.current) {
-        try {
-          // Tenter de réinitialiser l'animation du dernier bouton cliqué
-          const result = splineHelpers.emitEventReverse(
-            splineRef.current, 
-            'mouseUp', 
-            lastClickedButtonRef.current
-          );
-          
-          // Réinitialiser la référence du dernier bouton cliqué
-          if (result) {
-            lastClickedButtonRef.current = null;
-            return true;
-          }
-          
-          // Plan B : Si la réinitialisation directe échoue, tenter une approche alternative
-          logger.warn("Échec de la première méthode de réinitialisation, tentative de plan B");
-          
-          if (cameraRef.current) {
-            splineHelpers.emitEvent(splineRef.current, 'resetAllStates', cameraRef.current.uuid);
-            return true;
-          }
-        } catch (error) {
-          logger.error("Erreur lors de la réinitialisation des états de caméra:", error);
-        }
-      }
-      
-      return false;
-    },
+   
     
     // Obtenir le dernier bouton cliqué
     getLastClickedButton: () => lastClickedButtonRef.current,
@@ -265,13 +235,7 @@ const allButtonsHistoryRef = useRef({}); // Stockage de tous les boutons (scène
       // Réinitialiser le dernier bouton cliqué si nécessaire
       if (splineRef.current && lastClickedButtonRef.current) {
         try {
-          // Tenter de réinitialiser l'animation du dernier bouton cliqué
-          splineHelpers.emitEventReverse(
-            splineRef.current, 
-            'mouseUp', 
-            lastClickedButtonRef.current
-          );
-          
+                    
           // Réinitialiser la référence
           lastClickedButtonRef.current = null;
         } catch (error) {
