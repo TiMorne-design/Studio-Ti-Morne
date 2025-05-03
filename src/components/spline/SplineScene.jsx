@@ -23,12 +23,14 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
   const cameraRef = useRef(null);
   const lastClickedButtonRef = useRef(null);
   
+  
   // Utiliser les hooks personnalisés
   const {
     initializeCamera,
     handleWheel,
     handleMouseMove,
     handleTouchMove,
+    handleTouchEnd,
     handleButtonClick,
     restorePreviousCameraState,
     moveCamera,
@@ -73,11 +75,72 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
       }
     });
   };
+
+  const toolbarButtonHistoryRef = useRef([]);
+const sceneButtonHistoryRef = useRef([]); // Pour les boutons cliqués dans la scène Spline
+const allButtonsHistoryRef = useRef({}); // Stockage de tous les boutons (scène + toolbar) avec timestamp
+
   
   // Exposer les méthodes aux composants parents via ref
   useImperativeHandle(ref, () => ({
     // Obtenir l'instance Spline
     getSplineInstance: () => splineRef.current,
+    
+    setLastClickedButton: (buttonId) => {
+      if (buttonId) {
+        logger.log(`Définition explicite du dernier bouton cliqué: ${buttonId}`);
+        lastClickedButtonRef.current = buttonId;
+        
+        // Ajouter ce bouton à l'historique de la toolbar
+        if (!toolbarButtonHistoryRef.current.includes(buttonId)) {
+          toolbarButtonHistoryRef.current.push(buttonId);
+        }
+        
+        // Stocker dans l'historique général avec un timestamp
+        allButtonsHistoryRef.current[buttonId] = {
+          timestamp: Date.now(),
+          type: 'toolbar',
+          name: 'Toolbar-' + buttonId
+        };
+        
+        logger.log(`Historique de toolbar mis à jour:`, toolbarButtonHistoryRef.current);
+        return true;
+      }
+      return false;
+    },
+    
+    getToolbarButtonHistory: () => {
+      return [...toolbarButtonHistoryRef.current];
+    },
+    
+    getSceneButtonHistory: () => {
+      return [...sceneButtonHistoryRef.current];
+    },
+    
+    getAllButtonsHistory: () => {
+      return {...allButtonsHistoryRef.current};
+    },
+    
+    resetButtonState: (buttonId) => {
+      if (!buttonId || !splineRef.current) return false;
+      
+      try {
+        logger.log(`Réinitialisation de l'état du bouton: ${buttonId}`);
+        splineHelpers.emitEvent(splineRef.current, 'start', buttonId);
+        return true;
+      } catch (e) {
+        logger.error(`Erreur lors de la réinitialisation du bouton ${buttonId}:`, e);
+        return false;
+      }
+    },
+    
+    clearAllButtonsHistory: () => {
+      logger.log("Nettoyage de tous les historiques de boutons");
+      toolbarButtonHistoryRef.current = [];
+      sceneButtonHistoryRef.current = [];
+      allButtonsHistoryRef.current = {};
+      return true;
+    },
     
     // Gestion des contrôles de caméra
     handleButtonClick,
@@ -92,6 +155,13 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
       // Traitement normal des événements souris
       handleMouseMove(e);
     },
+
+    handleTouchEnd: (e) => {
+      // Gérer la fin du toucher
+      if (handleTouchEnd) {
+        handleTouchEnd(e);
+      }
+    },
     
     // Gestionnaire tactile - point unique de gestion des événements tactiles
     handleTouchMove: (e) => {
@@ -99,7 +169,8 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
       if (!e.touches) {
         return;
       }
-      
+
+            
       // Si des contrôles tactiles personnalisés sont actifs, ne rien faire
       if (useCustomTouchControls || window.__advancedTouchControlsActive) {
         return;
@@ -275,65 +346,85 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
    * Gestionnaire pour les clics sur les objets Spline
    * @param {Object} e - Événement de clic
    */
-  const onSplineMouseUp = (e) => {
-    if (!e.target) return;
-    
-    const objectName = e.target.name || '';
-    const objectUuid = e.target.uuid;
-        
-    // Obtenir l'ID de l'objet
-    const objectId = getObjectId(objectName, objectUuid);
-    
-    logger.log('Objet cliqué:', objectName, "UUID:", objectUuid, "ID:", objectId);
-    
-    // Cas particuliers où nous ne voulons pas désactiver les contrôles
-    const isAutomaticDoorOpening = window.__automaticDoorOpening === true;
-    const isPortfolioDoorObj = isPortfolioDoor(objectId, objectName);
-    const isPortfolioButton = objectId === BUTTON_IDS.PORTFOLIO && 
-                           (objectName === 'BUTTON_PORTFOLIO' || objectName.includes('BUTTON_PORTFOLIO'));
+  // Correction de l'erreur dans la fonction onSplineMouseUp de SplineScene.jsx
+// Remplacez tout le contenu actuel de la fonction par ce qui suit:
+
+const onSplineMouseUp = (e) => {
+  if (!e.target) return;
   
-    // IMPORTANT: pour le bouton portfolio, nous ne faisons rien de spécial ici 
-    // mais nous empêchons EXPLICITEMENT le comportement standard des boutons.
-    // La gestion sera faite entièrement via moveToPortfolioView
-    if (isPortfolioButton) {
-      logger.log("Bouton portfolio détecté dans SplineScene - pas de désactivation des contrôles");
+  const objectName = e.target.name || '';
+  const objectUuid = e.target.uuid;
       
-      // TRÈS IMPORTANT: Ne pas stocker lastClickedButtonRef.current pour le portfolio
-      // car c'est ce qui est utilisé pour restaurer l'état plus tard
-      // lastClickedButtonRef.current = objectId; <-- COMMENTÉ OU SUPPRIMÉ
+  // Obtenir l'ID de l'objet
+  const objectId = getObjectId(objectName, objectUuid);
+  
+  logger.log('Objet cliqué:', objectName, "UUID:", objectUuid, "ID:", objectId);
+  
+  // Cas particuliers où nous ne voulons pas désactiver les contrôles
+  const isAutomaticDoorOpening = window.__automaticDoorOpening === true;
+  const isPortfolioDoorObj = isPortfolioDoor(objectId, objectName);
+  const isPortfolioButton = objectId === BUTTON_IDS.PORTFOLIO && 
+                         (objectName === 'BUTTON_PORTFOLIO' || objectName.includes('BUTTON_PORTFOLIO'));
+
+  // Détermination si c'est un bouton
+  const buttonPatterns = [
+    /BUTTON_/i, /DATAVIZ/i, /3D/i, /SITE/i, /PORTE_/i, /PRESTATIONS/i, /ABOUT/i
+  ];
       
-      // On transmet simplement l'événement au parent qui utilisera notre fonction spéciale
-    }
-    // Si ce n'est pas le bouton portfolio, gérer normalement
-    else if (!isAutomaticDoorOpening && !isPortfolioDoorObj) {
-      // Vérification des boutons comme avant
-      const buttonPatterns = [
-        /BUTTON_/i, /DATAVIZ/i, /3D/i, /SITE/i, /PORTE_/i, /PRESTATIONS/i, /ABOUT/i
-      ];
-        
-      const isButton = 
-        Object.values(BUTTON_IDS).includes(objectId) || 
-        buttonPatterns.some(pattern => pattern.test(objectName) || pattern.test(objectUuid));
-      
-      if (isButton) {
-        logger.log("Bouton cliqué, désactivation des contrôles");
-        
-        // Stocker l'ID ou UUID du bouton cliqué
-        lastClickedButtonRef.current = objectId || objectUuid;
-        
-        // Désactiver les contrôles et sauvegarder l'état actuel
-        handleButtonClick();
-      }
-    } else if (isPortfolioDoorObj) {
-      // Pour la porte portfolio, stocker l'ID sans désactiver les contrôles
-      lastClickedButtonRef.current = objectId;
+  const isButton = 
+    Object.values(BUTTON_IDS).includes(objectId) || 
+    buttonPatterns.some(pattern => pattern.test(objectName) || pattern.test(objectUuid));
+
+  // Stocker le bouton dans l'historique si c'est un bouton
+  if (objectId && isButton) {
+    // Stocker ce bouton dans l'historique des boutons de scène
+    if (!sceneButtonHistoryRef.current.includes(objectId)) {
+      sceneButtonHistoryRef.current.push(objectId);
+      logger.log(`Bouton de scène ${objectId} ajouté à l'historique`);
     }
     
-    // Transmettre l'événement au parent avec l'ID en plus
-    if (onObjectClick) {
-      onObjectClick(objectName, splineRef.current, objectId);
+    // Stocker aussi dans l'historique général avec un timestamp
+    allButtonsHistoryRef.current[objectId] = {
+      timestamp: Date.now(),
+      type: 'scene',
+      name: objectName
+    };
+  }
+  
+  // IMPORTANT: pour le bouton portfolio, nous ne faisons rien de spécial ici 
+  // mais nous empêchons EXPLICITEMENT le comportement standard des boutons.
+  // La gestion sera faite entièrement via moveToPortfolioView
+  if (isPortfolioButton) {
+    logger.log("Bouton portfolio détecté dans SplineScene - pas de désactivation des contrôles");
+    
+    // TRÈS IMPORTANT: Ne pas stocker lastClickedButtonRef.current pour le portfolio
+    // car c'est ce qui est utilisé pour restaurer l'état plus tard
+    // lastClickedButtonRef.current = objectId; <-- COMMENTÉ OU SUPPRIMÉ
+    
+    // On transmet simplement l'événement au parent qui utilisera notre fonction spéciale
+  }
+  // Si ce n'est pas le bouton portfolio, gérer normalement
+  else if (!isAutomaticDoorOpening && !isPortfolioDoorObj) {
+    // Vérification des boutons comme avant
+    if (isButton) {
+      logger.log("Bouton cliqué, désactivation des contrôles");
+      
+      // Stocker l'ID ou UUID du bouton cliqué
+      lastClickedButtonRef.current = objectId || objectUuid;
+      
+      // Désactiver les contrôles et sauvegarder l'état actuel
+      handleButtonClick();
     }
-  };
+  } else if (isPortfolioDoorObj) {
+    // Pour la porte portfolio, stocker l'ID sans désactiver les contrôles
+    lastClickedButtonRef.current = objectId;
+  }
+  
+  // Transmettre l'événement au parent avec l'ID en plus
+  if (onObjectClick) {
+    onObjectClick(objectName, splineRef.current, objectId);
+  }
+};
   
   // Effet pour initialiser/nettoyer les variables globales
   useEffect(() => {
@@ -365,7 +456,10 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
       }
     }}
     onTouchEnd={(e) => {
-      // Gestionnaire pour les fins de toucher si nécessaire
+      // Important: gérer la fin du toucher
+      if (handleTouchEnd) {
+        handleTouchEnd(e);
+      }
     }}
   >
     <Spline

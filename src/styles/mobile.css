@@ -257,7 +257,7 @@
 /* Ajout pour bloquer le comportement tactile par défaut sans preventDefault() */
 .spline-container {
   /* Désactiver les comportements de défilement mais autoriser le pan */
-  touch-action: pan-x pan-y;
+  touch-action: none;
   /* Assurer que le contenu ne défile pas */
   overflow: hidden;
 }

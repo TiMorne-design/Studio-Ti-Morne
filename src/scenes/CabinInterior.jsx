@@ -272,7 +272,7 @@ export default function CabinInterior() {
     
     try {
       if (splineSceneRef.current.moveCamera) {
-        splineSceneRef.current.moveCamera(-6500);
+        splineSceneRef.current.moveCamera(-400);
       } else {
         const simulatedEvent = { deltaY: -400 };
         splineSceneRef.current.handleWheel(simulatedEvent);
@@ -337,7 +337,7 @@ export default function CabinInterior() {
     // Fermer tous les overlays
     setShowAboutOverlay(false);
     setShowContactOverlay(false);
-  
+    
     // Cas 1: Si un overlay de prestation était récemment ouvert (même s'il a été fermé via la croix)
     // On utilise une variable pour savoir si on était dans un contexte de prestation
     if (showPrestationOverlay || prestationContext.current) {
@@ -380,6 +380,11 @@ export default function CabinInterior() {
                 }, 100);
               }
               
+              // Nettoyer l'historique des boutons de la toolbar
+              if (splineSceneRef.current.clearToolbarButtonHistory) {
+                splineSceneRef.current.clearToolbarButtonHistory();
+              }
+              
               // Réinitialiser l'état de l'UI
               setShowReturnButton(false);
               setActiveButtonId(null);
@@ -389,7 +394,7 @@ export default function CabinInterior() {
       }
       return;
     }
-
+  
     // Cas 2: Si un overlay de contact était récemment ouvert (même s'il a été fermé via la croix)
     if (showContactOverlay || contactContext.current) {
       // Réinitialiser le contexte de contact
@@ -398,15 +403,14 @@ export default function CabinInterior() {
       if (showContactOverlay) {
         handleCloseContactOverlay();
       }
-
+  
       preventMailTriggerRef.current = true;
       
       // Pour le contact, utiliser une position FIXE prédéfinie directement ici
-      // au lieu d'essayer de la récupérer depuis les mappages qui pourraient être incorrects
       if (splineSceneRef.current) {
         logger.log("Retour depuis l'overlay de contact - utilisation d'une position fixe");
         
-        // Position fixe pour la vue contact - ajustez ces valeurs selon votre besoin
+        // Position fixe pour la vue contact
         const contactPosition = { x: 0, y: 300, z: -1500 };
         const contactRotation = { x: 0, y: 0, z: 0 };
         
@@ -417,7 +421,6 @@ export default function CabinInterior() {
           duration: 1500
         });
         
-        // Après l'animation, réactiver les contrôles et réinitialiser l'UI
         setTimeout(() => {
           if (splineSceneRef.current) {
             // Réactiver les contrôles
@@ -432,10 +435,8 @@ export default function CabinInterior() {
               setTimeout(() => {
                 logger.log(`Émission de l'événement start sur l'objet ${activeButtonId}`);
                 try {
-                  // Bloquer explicitement les événements pour éviter les interférences
                   window.__blockCameraEvents = true;
                   splineHelpers.emitEvent(splineInstance, 'start', activeButtonId);
-                  // Débloquer après un court délai
                   setTimeout(() => {
                     window.__blockCameraEvents = false;
                   }, 100);
@@ -445,12 +446,15 @@ export default function CabinInterior() {
               }, 100);
             }
             
+            // Nettoyer l'historique des boutons de la toolbar
+            if (splineSceneRef.current.clearToolbarButtonHistory) {
+              splineSceneRef.current.clearToolbarButtonHistory();
+            }
+            
             // Réinitialiser l'état de l'UI
             setShowReturnButton(false);
             setActiveButtonId(null);
-
-            // IMPORTANT: Désactiver la protection après un délai suffisant
-            // pour que tous les événements se soient terminés
+  
             setTimeout(() => {
               preventMailTriggerRef.current = false;
             }, 500);
@@ -460,10 +464,10 @@ export default function CabinInterior() {
       return;
     }
     
-    // Cas 3: Avant la restauration, vérifier si nous sommes en mode portfolio
+    // Cas 3: Vérifier si nous sommes en mode portfolio
     const isInPortfolioMode = window.__portfolioMode === true;
     logger.log("Retour à la position précédente, mode portfolio:", isInPortfolioMode);
-  
+    
     if (splineSceneRef.current) {
       // Si nous sommes en mode portfolio, gérer ce cas spécial
       if (isInPortfolioMode) {
@@ -473,13 +477,11 @@ export default function CabinInterior() {
         window.__portfolioMode = false;
         window.__preventCameraReset = false;
         
-        // Nettoyer le timeout de renforcement si existant
         if (window.__portfolioTimeout) {
           clearTimeout(window.__portfolioTimeout);
           window.__portfolioTimeout = null;
         }
         
-        // Pour le mode portfolio, ramener la caméra à une position neutre
         if (splineSceneRef.current.getSplineInstance) {
           const splineInstance = splineSceneRef.current.getSplineInstance();
           if (splineInstance) {
@@ -494,10 +496,14 @@ export default function CabinInterior() {
               duration: 2000
             });
             
-            // Réactiver les contrôles après l'animation
             setTimeout(() => {
               if (splineInstance.resumeAllControls) {
                 splineInstance.resumeAllControls();
+              }
+              
+              // Nettoyer l'historique des boutons de la toolbar
+              if (splineSceneRef.current.clearToolbarButtonHistory) {
+                splineSceneRef.current.clearToolbarButtonHistory();
               }
               
               // Réinitialiser l'état de l'UI
@@ -505,7 +511,6 @@ export default function CabinInterior() {
               setActiveButtonId(null);
             }, 2000);
             
-            // Réinitialiser le bouton actif
             if (activeButtonId) {
               setTimeout(() => {
                 logger.log(`Émission de l'événement start sur l'objet ${activeButtonId}`);
@@ -520,29 +525,69 @@ export default function CabinInterior() {
         }
       } else {
         // Cas standard - restaurer l'état précédent normalement
-        splineSceneRef.current.restorePreviousCameraState();
+      splineSceneRef.current.restorePreviousCameraState();
+      
+      // Obtenir tous les historiques de boutons
+      const toolbarHistory = splineSceneRef.current.getToolbarButtonHistory ? 
+        splineSceneRef.current.getToolbarButtonHistory() : [];
+      
+      const sceneHistory = splineSceneRef.current.getSceneButtonHistory ? 
+        splineSceneRef.current.getSceneButtonHistory() : [];
+      
+      const allButtonsHistory = splineSceneRef.current.getAllButtonsHistory ? 
+        splineSceneRef.current.getAllButtonsHistory() : {};
+      
+      const splineInstance = splineSceneRef.current.getSplineInstance();
+      
+      if (splineInstance) {
+        // Créer un tableau de tous les boutons triés par timestamp
+        const allButtonsArray = Object.entries(allButtonsHistory)
+          .map(([id, data]) => ({
+            id,
+            timestamp: data.timestamp,
+            type: data.type
+          }))
+          .sort((a, b) => a.timestamp - b.timestamp); // Du plus ancien au plus récent
         
-        // Obtenir l'instance Spline
-        const splineInstance = splineSceneRef.current.getSplineInstance();
-        
-        // Réinitialiser le bouton actif
-        if (splineInstance && activeButtonId) {
+        // Réinitialiser tous les boutons dans l'ordre chronologique
+        allButtonsArray.forEach((button, index) => {
           setTimeout(() => {
-            logger.log(`Émission de l'événement start sur l'objet ${activeButtonId}`);
+            logger.log(`Réinitialisation du bouton ${button.id} (${button.type}) - position ${index}`);
             try {
-              splineHelpers.emitEvent(splineInstance, 'start', activeButtonId);
+              splineHelpers.emitEvent(splineInstance, 'start', button.id);
             } catch (e) {
-              logger.error("Erreur lors de la réinitialisation du bouton:", e);
+              logger.error(`Erreur lors de la réinitialisation du bouton ${button.id}:`, e);
             }
-          }, 100);
-        }
-        
-        setShowReturnButton(false);
-        setActiveButtonId(null);
+          }, 100 + (index * 50)); // Espacer légèrement les réinitialisations
+        });
       }
+      
+      // Réinitialiser également le bouton actif s'il n'est pas dans l'historique
+      const allButtonIds = Object.keys(allButtonsHistory);
+      if (splineInstance && activeButtonId && !allButtonIds.includes(activeButtonId)) {
+        setTimeout(() => {
+          logger.log(`Émission de l'événement start sur l'objet actif ${activeButtonId}`);
+          try {
+            splineHelpers.emitEvent(splineInstance, 'start', activeButtonId);
+          } catch (e) {
+            logger.error("Erreur lors de la réinitialisation du bouton actif:", e);
+          }
+        }, 100 + (allButtonIds.length * 50));
+      }
+      
+      // Nettoyer tous les historiques
+      if (splineSceneRef.current.clearAllButtonsHistory) {
+        setTimeout(() => {
+          splineSceneRef.current.clearAllButtonsHistory();
+        }, 300 + (allButtonIds.length * 50));
+      }
+      
+      setShowReturnButton(false);
+      setActiveButtonId(null);
     }
-  }, [showPrestationOverlay, handleClosePrestationOverlay, activeButtonId, showContactOverlay, handleCloseContactOverlay]);
-  
+  }
+}, [showPrestationOverlay, handleClosePrestationOverlay, activeButtonId, showContactOverlay, handleCloseContactOverlay]);
+
   /**
    * Gère les clics sur les tiroirs de prestation
    */
@@ -652,46 +697,79 @@ export default function CabinInterior() {
    * Gère la navigation depuis la barre d'outils
    */
   const handleToolbarNavigation = useCallback((view) => {
-    logger.log(`Navigation vers la vue: ${view}`);
+  logger.log(`Navigation vers la vue: ${view}`);
+  
+  // Fermer les overlays
+  setShowAboutOverlay(false);
+  if (showPrestationOverlay) {
+    handleClosePrestationOverlay();
+  }
+  setShowContactOverlay(false);
+  
+  // Obtenir l'instance Spline
+  if (splineSceneRef.current) {
+    // Capturer les positions actuelles de la caméra
+    splineSceneRef.current.handleButtonClick();
     
-    // Fermer les overlays
-    setShowAboutOverlay(false);
-    if (showPrestationOverlay) {
-      handleClosePrestationOverlay();
-    }
-
-    setShowContactOverlay(false);
+    // Récupérer l'historique des boutons
+    const toolbarHistory = splineSceneRef.current.getToolbarButtonHistory ? 
+      splineSceneRef.current.getToolbarButtonHistory() : [];
+    
+    const sceneHistory = splineSceneRef.current.getSceneButtonHistory ? 
+      splineSceneRef.current.getSceneButtonHistory() : [];
     
     // Obtenir l'instance Spline
-    if (splineSceneRef.current) {
-      // Capturer les positions actuelles de la caméra
-      splineSceneRef.current.handleButtonClick();
-      
-      // Obtenir la configuration de vue
-      const viewConfig = VIEW_MAPPINGS[view];
-      
-      if (viewConfig) {
-        // Animer la caméra vers la position cible
-        animateCameraToView(view, viewConfig.buttonId);
-        
-        // Actions spéciales pour certaines vues
-        if (view === 'about') {
-          // Afficher l'overlay About après l'animation
-          setTimeout(() => {
-            setShowAboutOverlay(true);
-          }, isMobile ? 1500 : 2000);
+    const splineInstance = splineSceneRef.current.getSplineInstance();
+    
+    // IMPORTANT: D'abord réinitialiser tous les boutons de la scène
+    if (splineInstance) {
+      sceneHistory.forEach(buttonId => {
+        if (splineSceneRef.current.resetButtonState) {
+          logger.log(`Réinitialisation du bouton de scène: ${buttonId}`);
+          splineSceneRef.current.resetButtonState(buttonId);
         }
+      });
+      
+      // Ensuite réinitialiser tous les boutons de la toolbar précédents
+      toolbarHistory.forEach(buttonId => {
+        if (splineSceneRef.current.resetButtonState) {
+          logger.log(`Réinitialisation du bouton de toolbar: ${buttonId}`);
+          splineSceneRef.current.resetButtonState(buttonId);
+        }
+      });
+    }
+    
+    // Obtenir la configuration de vue
+    const viewConfig = VIEW_MAPPINGS[view];
+    
+    if (viewConfig) {
+      // IMPORTANT: Définir explicitement le dernier bouton cliqué avant d'animer la caméra
+      if (splineSceneRef.current.setLastClickedButton) {
+        splineSceneRef.current.setLastClickedButton(viewConfig.buttonId);
+      }
+      
+      // Animer la caméra vers la position cible
+      animateCameraToView(view, viewConfig.buttonId);
+      
+      // Actions spéciales pour certaines vues
+      if (view === 'about') {
+        // Afficher l'overlay About après l'animation
+        setTimeout(() => {
+          setShowAboutOverlay(true);
+        }, isMobile ? 1500 : 2000);
+      }
 
-        if (view === 'contact') {
-          if (splineSceneRef.current) {
-            splineSceneRef.current.handleButtonClick();
-            // Utiliser animateCameraToView comme pour les autres vues
-            animateCameraToView('contact', BUTTON_IDS.MAIL);
-          }
+      if (view === 'contact') {
+        if (splineSceneRef.current) {
+          splineSceneRef.current.handleButtonClick();
+          // Utiliser animateCameraToView comme pour les autres vues
+          animateCameraToView('contact', BUTTON_IDS.MAIL);
         }
       }
     }
-  }, [showPrestationOverlay, handleClosePrestationOverlay, animateCameraToView, isMobile]);
+  }
+}, [showPrestationOverlay, handleClosePrestationOverlay, animateCameraToView, isMobile]);
+
   
   /**
    * Gère les clics sur les objets de la scène

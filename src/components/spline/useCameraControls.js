@@ -5,6 +5,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import cameraUtils from '../../utils/cameraUtils';
 import debugUtils from '../../utils/debugUtils';
+import animationUtils from '../../utils/animation';
 import splineHelpers from '../../utils/splineHelpers';
 import { BUTTON_IDS, OBJECT_IDS } from '../../constants/ids';
 
@@ -25,6 +26,21 @@ export default function useCameraControls(cameraRef, splineRef) {
   const initialPosition = useRef({ x: 0, y: 0, z: 0 });
   const targetRotation = useRef({ x: 0, y: 0, z: 0 });
   const initialRotation = useRef({ x: 0, y: 0, z: 0 });
+
+  // Référence pour les états de contrôle tactile
+  const touchSwipeActiveRef = useRef(false);
+  const touchSwipeTimerRef = useRef(null);
+  const touchStateRef = useRef({
+    startX: 0,
+    startY: 0,
+    lastX: 0,
+    lastY: 0,
+    isDragging: false,
+    initialRotationY: 0,
+    timestamp: 0,
+    velocityX: 0,
+    velocityY: 0
+  });
   
   // Référence pour la boucle d'animation
   const animationFrameRef = useRef(null);
@@ -384,91 +400,182 @@ const handleMouseMove = useCallback((e) => {
 
 
 /**
- * Gère les événements tactiles pour tous les appareils
- * @param {TouchEvent} e - Événement tactile natif
- */
+   * Gère les événements tactiles pour tous les appareils
+   * Version améliorée avec inertie et transitions plus fluides
+   * @param {TouchEvent} e - Événement tactile natif
+   */
 const handleTouchMove = useCallback((e) => {
   if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
   
   // Traiter uniquement les événements tactiles à un doigt
   if (!e.touches || e.touches.length !== 1) return;
   
-  // Vérifier si on est sur la terrasse et si on n'a pas encore fait de demi-tour
-  if (isOnTerrace.current && !hasPerformedFirstTurn.current) {
-    return;
+  const touch = e.touches[0];
+  const state = touchStateRef.current;
+  const now = Date.now();
+  
+  // Détection de l'événement touchstart (première fois que le toucher est enregistré)
+  if (!state.isDragging || state.lastX === 0) {
+    state.startX = touch.clientX;
+    state.startY = touch.clientY;
+    state.lastX = touch.clientX;
+    state.lastY = touch.clientY;
+    state.isDragging = true;
+    state.timestamp = now;
+    state.velocityX = 0;
+    state.velocityY = 0;
+    
+    // IMPORTANT: Stocker la rotation initiale de la caméra
+    if (cameraRef.current) {
+      state.initialRotationY = cameraRef.current.rotation.y;
+    }
+    
+    return; // Ne pas appliquer de changement au premier toucher
   }
   
-  const touch = e.touches[0];
+  // Calcul du delta depuis le dernier mouvement et mise à jour de la vélocité
+  const deltaTime = Math.max(10, now - state.timestamp); // Éviter les divisions par zéro
+  const deltaXFromLast = touch.clientX - state.lastX;
+  const deltaYFromLast = touch.clientY - state.lastY;
   
-  // Normaliser la position entre -1 et 1
+  // Calculer la vélocité (pixels par milliseconde)
+  state.velocityX = 0.7 * state.velocityX + 0.3 * (deltaXFromLast / deltaTime);
+  state.velocityY = 0.7 * state.velocityY + 0.3 * (deltaYFromLast / deltaTime);
+   
+  // Calcul du delta depuis le DÉBUT du toucher
+  const deltaXFromStart = touch.clientX - state.startX;
+  
+  // Base de rotation selon la direction de mouvement
+  const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
+  
+  // Paramètres configurables
+  const sensitivity = window.__touchSensitivity || 1.5;
+  
+  // Calculer la rotation cible ABSOLUE depuis le début du toucher
+  const rotationOffset = deltaXFromStart * 0.004 * sensitivity;
+  
+  // Appliquer un easing pour une rotation plus naturelle
+  const easedRotationOffset = animationUtils.easingFunctions.easeOutCubic(Math.abs(rotationOffset)) * Math.sign(rotationOffset);
+  
+  targetRotation.current.y = state.initialRotationY + easedRotationOffset;
+  
+  // Normaliser les positions tactiles
   const normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
   const normalizedY = (touch.clientY / window.innerHeight) * 2 - 1;
   
-  // Paramètres configurables
-  const sensitivity = window.__touchSensitivity || 1.5; // Utiliser une valeur globale si définie
+  // Appliquer des courbes de réponse avec easing
+  const xModified = Math.sign(normalizedX) * Math.pow(Math.abs(normalizedX), 1.1) * sensitivity;
+  const yModified = Math.sign(normalizedY) * Math.pow(Math.abs(normalizedY), 1.2) * sensitivity;
   
-  // Appliquer la courbe de réponse pour un mouvement plus naturel
-  const xModified = Math.sign(normalizedX) * Math.pow(Math.abs(normalizedX), 1.2) * sensitivity;
-  const yModified = Math.sign(normalizedY) * Math.pow(Math.abs(normalizedY), 1.3) * sensitivity;
-  
-  // Calcul de la distance par rapport au centre
+  // Distance du centre pour la zone morte
   const distanceFromCenterX = Math.abs(xModified);
   
   // Position avec offset proportionnel au mouvement
   const posOffsetX = xModified * config.maxPositionOffset;
   const verticalFactor = Math.max(0, 1 - (distanceFromCenterX / config.centerWidthZone));
-  const posOffsetY = -yModified * config.maxPositionOffset * 0.4 * verticalFactor;
+  
+  // Appliquer un easing au facteur vertical pour une réponse plus douce
+  const easedVerticalFactor = animationUtils.easingFunctions.easeOutQuad(verticalFactor);
+  const posOffsetY = -yModified * config.maxPositionOffset * 0.4 * easedVerticalFactor;
   
   // Appliquer à la position cible
   targetPosition.current.x = initialPosition.current.x + posOffsetX;
   targetPosition.current.y = initialPosition.current.y + posOffsetY;
   
-  // Base de rotation selon la direction
-  const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
-  
-  // Pour le tactile: mouvement naturel par défaut (pas d'inversion)
-  targetRotation.current.y = baseAngle + (xModified * config.maxSideRotation);
-  
-  // Rotation verticale adaptée à la direction
+  // Rotation verticale adaptée à la direction avec easing
   if (movementDirection.current > 0) {
-    targetRotation.current.x = -yModified * config.maxVerticalAngle * verticalFactor;
+    targetRotation.current.x = -yModified * config.maxVerticalAngle * easedVerticalFactor;
   } else {
-    targetRotation.current.x = yModified * config.maxVerticalAngle * verticalFactor;
+    targetRotation.current.x = yModified * config.maxVerticalAngle * easedVerticalFactor;
   }
   
   // Assurer que Z reste à 0
   targetRotation.current.z = 0;
+  
+  // Mise à jour de l'inertie pour les contrôles tactiles
+  if (config.inertiaEnabled) {
+    // Stocker les vélocités pour l'inertie
+    inertiaSystem.current.velocityRotY = state.velocityX * 0.001 * sensitivity;
+    inertiaSystem.current.velocityRotX = -state.velocityY * 0.001 * sensitivity * 
+                                       (movementDirection.current > 0 ? 1 : -1);
+    inertiaSystem.current.applyInertia = true;
+  }
+  
+  // Mettre à jour la position pour le prochain événement
+  state.lastX = touch.clientX;
+  state.lastY = touch.clientY;
+  state.timestamp = now;
+  
+  // Marquer le swipe comme actif pour bloquer les clics accidentels
+  window.__isSwipingActive = true;
+  touchSwipeActiveRef.current = true;
+  
+  // Nettoyer le timer existant s'il y en a un
+  if (touchSwipeTimerRef.current) {
+    clearTimeout(touchSwipeTimerRef.current);
+  }
+  
+  // Définir un nouveau timer pour réinitialiser l'état de swipe
+  touchSwipeTimerRef.current = setTimeout(() => {
+    window.__isSwipingActive = false;
+    touchSwipeActiveRef.current = false;
+  }, 300);
 }, [controlsEnabled, isAfterButtonClick, isOnTerrace, hasPerformedFirstTurn]);
 
-  /**
-   * Sauvegarde l'état actuel de la caméra
-   */
-  const saveCurrentCameraState = useCallback(() => {
-    if (!cameraRef.current) return;
+/**
+ * Gère la fin d'un toucher avec inertie
+ * @param {TouchEvent} e - Événement tactile natif
+ */
+const handleTouchEnd = useCallback((e) => {
+  // Réinitialiser l'état du toucher
+  const state = touchStateRef.current;
+  if (state.isDragging) {
+    state.isDragging = false;
     
-    const camera = cameraRef.current;
-    
-    previousCameraState.current = {
-      position: {
-        x: camera.position.x,
-        y: camera.position.y,
-        z: camera.position.z
-      },
-      rotation: {
-        x: camera.rotation.x,
-        y: camera.rotation.y,
-        z: camera.rotation.z
-      },
-      initialPosition: { ...initialPosition.current },
-      initialRotation: { ...initialRotation.current },
-      targetPosition: { ...targetPosition.current },
-      targetRotation: { ...targetRotation.current },
-      movementDirection: movementDirection.current,
-      isOnTerrace: isOnTerrace.current
-    };
-    
-    logger.log("État de la caméra sauvegardé avant le clic sur bouton", previousCameraState.current);
-  }, []);
+    // Appliquer l'inertie à la fin du toucher
+    if (config.inertiaEnabled) {
+      inertiaSystem.current.applyInertia = true;
+    }
+  }
+  
+  // Maintenir le flag actif pendant un court délai
+  if (touchSwipeActiveRef.current) {
+    touchSwipeTimerRef.current = setTimeout(() => {
+      window.__isSwipingActive = false;
+      touchSwipeActiveRef.current = false;
+    }, 300);
+  }
+}, []);
+
+/**
+ * Sauvegarde l'état actuel de la caméra
+ */
+const saveCurrentCameraState = useCallback(() => {
+  if (!cameraRef.current) return;
+  
+  const camera = cameraRef.current;
+  
+  previousCameraState.current = {
+    position: {
+      x: camera.position.x,
+      y: camera.position.y,
+      z: camera.position.z
+    },
+    rotation: {
+      x: camera.rotation.x,
+      y: camera.rotation.y,
+      z: camera.rotation.z
+    },
+    initialPosition: { ...initialPosition.current },
+    initialRotation: { ...initialRotation.current },
+    targetPosition: { ...targetPosition.current },
+    targetRotation: { ...targetRotation.current },
+    movementDirection: movementDirection.current,
+    isOnTerrace: isOnTerrace.current
+  };
+  
+  logger.log("État de la caméra sauvegardé");
+}, []);
   
   /**
    * Désactive les contrôles lors d'un clic sur un bouton
@@ -732,6 +839,7 @@ const handleTouchMove = useCallback((e) => {
     handleWheel,
     handleMouseMove,
     handleTouchMove,
+    handleTouchEnd,
     handleButtonClick,
     restorePreviousCameraState,
     moveCamera,
