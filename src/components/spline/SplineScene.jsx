@@ -314,9 +314,15 @@ const allButtonsHistoryRef = useRef({}); // Stockage de tous les boutons (scène
 // Remplacez tout le contenu actuel de la fonction par ce qui suit:
 
 const onSplineMouseUp = (e) => {
+  // Bloquer tous les clics si un swipe est en cours ou vient de se terminer
+  if (window.__isSwiping) {
+    logger.log('Clic bloqué: swipe en cours ou récent');
+    return;
+  }
+  
+  // Continuer normalement avec le reste du code si aucun swipe n'est actif
   if (!e.target) return;
   
-  // Extraire d'abord le nom de l'objet et l'UUID
   const objectName = e.target.name || '';
   const objectUuid = e.target.uuid;
   
