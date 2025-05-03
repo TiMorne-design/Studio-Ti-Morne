@@ -235,27 +235,36 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
         currentRot.x += drx * config.smoothFactor;
         currentRot.y += dry * config.smoothFactor;
 
-         // NOUVEAU : Mise à jour de la rotation des boutons (DÉPLACÉ À L'INTÉRIEUR DU BLOC)
-      if (splineRef.current) {
-        const splineApp = splineRef.current;
-        const buttonIds = Object.values(BUTTON_IDS);
-        
-        buttonIds.forEach(buttonId => {
-          const buttonObject = splineApp.findObjectById(buttonId);
-          if (!buttonObject) return;
-          
-          // Calculer l'angle entre la caméra et le bouton sur le plan XZ
-          const angleY = Math.atan2(
-            currentPos.x - buttonObject.position.x,
-            currentPos.z - buttonObject.position.z
-          );
-          
-          // Appliquer une rotation fluide
-          const currentButtonRotY = buttonObject.rotation.y;
-          buttonObject.rotation.y = currentButtonRotY + 
-            (angleY - currentButtonRotY) * config.smoothFactor;
-        });
-      }
+         // Mise à jour de la rotation des boutons spécifiques seulement
+if (splineRef.current) {
+  const splineApp = splineRef.current;
+  
+  // Liste des boutons spécifiques qui doivent tourner
+  const rotatingButtonIds = [
+    BUTTON_IDS.DATAVIZ,
+    BUTTON_IDS.ABOUT, 
+    BUTTON_IDS.SITE, 
+    BUTTON_IDS.MODEL3D, // Supposé être votre "3D"
+    BUTTON_IDS.PRESTATIONS
+  ];
+  
+  // Pour chaque bouton dans la liste spécifique
+  rotatingButtonIds.forEach(buttonId => {
+    const buttonObject = splineApp.findObjectById(buttonId);
+    if (!buttonObject) return;
+    
+    // Calculer l'angle entre la caméra et le bouton sur le plan XZ
+    const angleY = Math.atan2(
+      currentPos.x - buttonObject.position.x,
+      currentPos.z - buttonObject.position.z
+    );
+    
+    // Appliquer une rotation fluide
+    const currentButtonRotY = buttonObject.rotation.y;
+    buttonObject.rotation.y = currentButtonRotY + 
+      (angleY - currentButtonRotY) * config.smoothFactor;
+  });
+}
         
         // Maintenir toujours la rotation Z à 0
         currentRot.z = 0;
