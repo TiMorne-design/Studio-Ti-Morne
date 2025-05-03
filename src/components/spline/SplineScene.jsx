@@ -31,6 +31,7 @@ const SplineScene = forwardRef(({ scenePath, onObjectClick, onLoad: propsOnLoad,
     handleMouseMove,
     handleTouchMove,
     handleTouchEnd,
+    handleTouchStart,
     handleButtonClick,
     restorePreviousCameraState,
     moveCamera,
@@ -109,6 +110,7 @@ const allButtonsHistoryRef = useRef({}); // Stockage de tous les boutons (scène
       return false;
     },
     
+    
     getToolbarButtonHistory: () => {
       return [...toolbarButtonHistoryRef.current];
     },
@@ -144,6 +146,7 @@ const allButtonsHistoryRef = useRef({}); // Stockage de tous les boutons (scène
     
     // Gestion des contrôles de caméra
     handleButtonClick,
+    handleTouchStart,
     handleWheel, 
     // Gestionnaire souris - traite uniquement les événements souris
     handleMouseMove: (e) => {
@@ -423,14 +426,12 @@ const onSplineMouseUp = (e) => {
       style={{
         width: '100vw',
         height: '100vh',
-        position: 'relative'
+        position: 'relative',
+        touchAction: 'none' // Ajouter cette propriété
       }}
       onWheel={handleWheel}
     onMouseMove={handleMouseMove}
-    onTouchStart={(e) => {
-      // Ne pas appeler preventDefault() ici
-    }}
-    onTouchMove={(e) => {
+        onTouchMove={(e) => {
       // Transmettre tous les événements tactiles à handleTouchMove
       if (e.touches) {
         handleTouchMove(e);
@@ -441,6 +442,10 @@ const onSplineMouseUp = (e) => {
       if (handleTouchEnd) {
         handleTouchEnd(e);
       }
+    }}
+    onTouchStart={(e) => {
+      // Utiliser notre nouvelle fonction handleTouchStart
+      handleTouchStart(e);
     }}
   >
     <Spline

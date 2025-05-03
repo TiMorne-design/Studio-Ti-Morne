@@ -234,6 +234,28 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
         
         currentRot.x += drx * config.smoothFactor;
         currentRot.y += dry * config.smoothFactor;
+
+         // NOUVEAU : Mise à jour de la rotation des boutons (DÉPLACÉ À L'INTÉRIEUR DU BLOC)
+      if (splineRef.current) {
+        const splineApp = splineRef.current;
+        const buttonIds = Object.values(BUTTON_IDS);
+        
+        buttonIds.forEach(buttonId => {
+          const buttonObject = splineApp.findObjectById(buttonId);
+          if (!buttonObject) return;
+          
+          // Calculer l'angle entre la caméra et le bouton sur le plan XZ
+          const angleY = Math.atan2(
+            currentPos.x - buttonObject.position.x,
+            currentPos.z - buttonObject.position.z
+          );
+          
+          // Appliquer une rotation fluide
+          const currentButtonRotY = buttonObject.rotation.y;
+          buttonObject.rotation.y = currentButtonRotY + 
+            (angleY - currentButtonRotY) * config.smoothFactor;
+        });
+      }
         
         // Maintenir toujours la rotation Z à 0
         currentRot.z = 0;
@@ -363,6 +385,10 @@ const handleMouseMove = useCallback((e) => {
   
   if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
   
+  // Vérifier si on est sur la terrasse et si on doit ignorer l'événement
+  if (isOnTerrace.current && !hasPerformedFirstTurn.current) {
+    return;
+  }
   // Normaliser la position de la souris entre -1 et 1
   const x = (e.clientX / window.innerWidth) * 2 - 1;
   const y = (e.clientY / window.innerHeight) * 2 - 1;
@@ -406,12 +432,13 @@ const handleMouseMove = useCallback((e) => {
    * Version améliorée avec inertie et transitions plus fluides
    * @param {TouchEvent} e - Événement tactile natif
    */
+/**
+ * Gère les événements tactiles avec inertie réduite
+ * @param {TouchEvent} e - Événement tactile natif
+ */
 const handleTouchMove = useCallback((e) => {
   if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
   
-  // Activer le flag de swipe global dès qu'un mouvement tactile est détecté
-  window.__isSwiping = true;
-
   // Traiter uniquement les événements tactiles à un doigt
   if (!e.touches || e.touches.length !== 1) return;
   
@@ -419,33 +446,19 @@ const handleTouchMove = useCallback((e) => {
   const state = touchStateRef.current;
   const now = Date.now();
   
-  // Détection de l'événement touchstart (première fois que le toucher est enregistré)
-  if (!state.isDragging || state.lastX === 0) {
-    state.startX = touch.clientX;
-    state.startY = touch.clientY;
-    state.lastX = touch.clientX;
-    state.lastY = touch.clientY;
-    state.isDragging = true;
-    state.timestamp = now;
-    state.velocityX = 0;
-    state.velocityY = 0;
-    
-    // IMPORTANT: Stocker la rotation initiale de la caméra
-    if (cameraRef.current) {
-      state.initialRotationY = cameraRef.current.rotation.y;
-    }
-    
-    return; // Ne pas appliquer de changement au premier toucher
-  }
+   // Si l'état du toucher n'est pas initialisé, ne rien faire
+  // (cela devrait être géré par handleTouchStart)
+  if (!state.isDragging) return;
   
   // Calcul du delta depuis le dernier mouvement et mise à jour de la vélocité
   const deltaTime = Math.max(10, now - state.timestamp); // Éviter les divisions par zéro
   const deltaXFromLast = touch.clientX - state.lastX;
   const deltaYFromLast = touch.clientY - state.lastY;
   
-  // Calculer la vélocité (pixels par milliseconde)
-  state.velocityX = 0.7 * state.velocityX + 0.3 * (deltaXFromLast / deltaTime);
-  state.velocityY = 0.7 * state.velocityY + 0.3 * (deltaYFromLast / deltaTime);
+  // MODIFICATION: Réduire le coefficient d'inertie de 0.7 à 0.4
+  // Cela réduit l'influence de la vélocité précédente
+  state.velocityX = 0.4 * state.velocityX + 0.6 * (deltaXFromLast / deltaTime);
+  state.velocityY = 0.4 * state.velocityY + 0.6 * (deltaYFromLast / deltaTime);
    
   // Calcul du delta depuis le DÉBUT du toucher
   const deltaXFromStart = touch.clientX - state.startX;
@@ -453,11 +466,12 @@ const handleTouchMove = useCallback((e) => {
   // Base de rotation selon la direction de mouvement
   const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
   
-  // Paramètres configurables
-  const sensitivity = window.__touchSensitivity || 1.5;
+  // MODIFICATION: Réduire la sensibilité par défaut
+  const sensitivity = (window.__touchSensitivity || 1.0) * 0.7;
   
   // Calculer la rotation cible ABSOLUE depuis le début du toucher
-  const rotationOffset = deltaXFromStart * 0.004 * sensitivity;
+  // MODIFICATION: Réduire le facteur de rotation
+  const rotationOffset = deltaXFromStart * 0.003 * sensitivity;
   
   // Appliquer un easing pour une rotation plus naturelle
   const easedRotationOffset = animationUtils.easingFunctions.easeOutCubic(Math.abs(rotationOffset)) * Math.sign(rotationOffset);
@@ -468,42 +482,46 @@ const handleTouchMove = useCallback((e) => {
   const normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
   const normalizedY = (touch.clientY / window.innerHeight) * 2 - 1;
   
-  // Appliquer des courbes de réponse avec easing
-  const xModified = Math.sign(normalizedX) * Math.pow(Math.abs(normalizedX), 1.1) * sensitivity;
-  const yModified = Math.sign(normalizedY) * Math.pow(Math.abs(normalizedY), 1.2) * sensitivity;
+  // MODIFICATION: Réduire la puissance des courbes de réponse
+  const xModified = Math.sign(normalizedX) * Math.pow(Math.abs(normalizedX), 1.0) * sensitivity;
+  const yModified = Math.sign(normalizedY) * Math.pow(Math.abs(normalizedY), 1.0) * sensitivity;
   
   // Distance du centre pour la zone morte
   const distanceFromCenterX = Math.abs(xModified);
   
   // Position avec offset proportionnel au mouvement
-  const posOffsetX = xModified * config.maxPositionOffset;
+  // MODIFICATION: Réduire les offsets
+  const posOffsetX = xModified * config.maxPositionOffset * 0.8;
   const verticalFactor = Math.max(0, 1 - (distanceFromCenterX / config.centerWidthZone));
   
-  // Appliquer un easing au facteur vertical pour une réponse plus douce
-  const easedVerticalFactor = animationUtils.easingFunctions.easeOutQuad(verticalFactor);
-  const posOffsetY = -yModified * config.maxPositionOffset * 0.4 * easedVerticalFactor;
+  // MODIFICATION: Réduire l'easing vertical
+  const easedVerticalFactor = animationUtils.easingFunctions.easeOutQuad(verticalFactor) * 0.8;
+  const posOffsetY = -yModified * config.maxPositionOffset * 0.3 * easedVerticalFactor;
   
   // Appliquer à la position cible
   targetPosition.current.x = initialPosition.current.x + posOffsetX;
   targetPosition.current.y = initialPosition.current.y + posOffsetY;
   
-  // Rotation verticale adaptée à la direction avec easing
+  // Rotation verticale adaptée à la direction avec easing réduit
   if (movementDirection.current > 0) {
-    targetRotation.current.x = -yModified * config.maxVerticalAngle * easedVerticalFactor;
+    targetRotation.current.x = -yModified * config.maxVerticalAngle * easedVerticalFactor * 0.8;
   } else {
-    targetRotation.current.x = yModified * config.maxVerticalAngle * easedVerticalFactor;
+    targetRotation.current.x = yModified * config.maxVerticalAngle * easedVerticalFactor * 0.8;
   }
   
   // Assurer que Z reste à 0
   targetRotation.current.z = 0;
   
-  // Mise à jour de l'inertie pour les contrôles tactiles
+  // MODIFICATION: Désactiver complètement l'inertie si elle est source de problèmes
+  // ou bien réduire fortement son influence
   if (config.inertiaEnabled) {
-    // Stocker les vélocités pour l'inertie
-    inertiaSystem.current.velocityRotY = state.velocityX * 0.001 * sensitivity;
-    inertiaSystem.current.velocityRotX = -state.velocityY * 0.001 * sensitivity * 
-                                       (movementDirection.current > 0 ? 1 : -1);
-    inertiaSystem.current.applyInertia = true;
+    // Stocker les vélocités pour l'inertie avec valeurs réduites
+    if (inertiaSystem && inertiaSystem.current) {
+      inertiaSystem.current.velocityRotY = state.velocityX * 0.0005 * sensitivity;
+      inertiaSystem.current.velocityRotX = -state.velocityY * 0.0005 * sensitivity * 
+                                         (movementDirection.current > 0 ? 1 : -1);
+      inertiaSystem.current.applyInertia = true;
+    }
   }
   
   // Mettre à jour la position pour le prochain événement
@@ -526,6 +544,56 @@ const handleTouchMove = useCallback((e) => {
     touchSwipeActiveRef.current = false;
   }, 300);
 }, [controlsEnabled, isAfterButtonClick, isOnTerrace, hasPerformedFirstTurn]);
+
+/**
+ * Gère le début d'un événement tactile et bloque les clics
+ * @param {TouchEvent} e - Événement tactile natif
+ */
+const handleTouchStart = useCallback((e) => {
+  if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
+  
+  // Vérifier qu'il s'agit bien d'un toucher à un doigt
+  if (!e.touches || e.touches.length !== 1) return;
+  
+  const touch = e.touches[0];
+  const state = touchStateRef.current;
+  
+  // Marquer immédiatement le swipe comme actif pour bloquer les clics
+  window.__isSwipingActive = true;
+  window.__isSwiping = true; // Pour compatibilité avec onSplineMouseUp
+  touchSwipeActiveRef.current = true;
+  
+  // Initialiser l'état du toucher
+  state.startX = touch.clientX;
+  state.startY = touch.clientY;
+  state.lastX = touch.clientX;
+  state.lastY = touch.clientY;
+  state.isDragging = true;
+  state.timestamp = Date.now();
+  state.velocityX = 0;
+  state.velocityY = 0;
+  
+  // Stocker la rotation initiale
+  if (cameraRef.current) {
+    state.initialRotationY = cameraRef.current.rotation.y;
+  }
+  
+  // Nettoyer le timer existant si présent
+  if (touchSwipeTimerRef.current) {
+    clearTimeout(touchSwipeTimerRef.current);
+  }
+  
+  // Définir un nouveau timer pour réinitialiser l'état de swipe après un délai
+  touchSwipeTimerRef.current = setTimeout(() => {
+    window.__isSwipingActive = false;
+    window.__isSwiping = false;
+    touchSwipeActiveRef.current = false;
+  }, 300);
+  
+  // Ne pas appeler e.preventDefault() ici - utiliser touch-action: none en CSS à la place
+}, [controlsEnabled, isAfterButtonClick]);
+
+
 
 /**
  * Gère la fin d'un toucher avec inertie
@@ -839,6 +907,7 @@ const saveCurrentCameraState = useCallback(() => {
     handleMouseMove,
     handleTouchMove,
     handleTouchEnd,
+    handleTouchStart,
     handleButtonClick,
     restorePreviousCameraState,
     moveCamera,
