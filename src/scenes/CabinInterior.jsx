@@ -25,7 +25,6 @@ import {
   isPortfolioDoor 
 } from '../utils/objectUtils';
 import useDeviceDetection from '../hooks/useDeviceDetection';
-import TouchControls from '../hooks/TouchControls';
 import useDoorTrigger from '../hooks/useDoorTrigger';
 import splineHelpers from '../utils/splineHelpers';
 import cameraUtils from '../utils/cameraUtils';
@@ -833,6 +832,12 @@ export default function CabinInterior() {
       navigate('/conception');
       return;
     }
+
+  if (resolvedObjectId === BUTTON_IDS.RECIF) {
+    console.log("Tentative de navigation vers /recif-corallien");
+    navigate('/recif-corallien');
+    return;
+  }
     
     // Identifier les types d'objets spéciaux
     const isPortfolioButton = (objectName === 'BUTTON_PORTFOLIO' || 

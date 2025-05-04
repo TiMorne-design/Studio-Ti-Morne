@@ -7,6 +7,7 @@ import CabinInterior from './scenes/CabinInterior';
 import DatavizEoliennesPage from "./scenes/DatavizEoliennesPage";
 import DatavizSargassesPage from "./scenes/DatavizSargassesPage";
 import TimorneConceptionPage from "./scenes/TimorneConceptionPage";
+import RecifCorallienPage from "./scenes/RecifCorallienPage";
 import './App.css';
 import './styles/mobile.css';
 
@@ -79,6 +80,16 @@ function App() {
     </Suspense>
   } 
 />
+
+   {/* Nouvelle route pour le récif corallien */}
+   <Route 
+              path="/recif-corallien" 
+              element={
+                <Suspense fallback={<LoadingScreen message="Préparation de la plongée..." />}>
+                  <RecifCorallienPage />
+                </Suspense>
+              } 
+            />
             
             {/* Autres routes */}
             <Route path="/contact" element={<Contact />} />
