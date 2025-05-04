@@ -316,28 +316,30 @@ const allButtonsHistoryRef = useRef({}); // Stockage de tous les boutons (scène
   // Correction de l'erreur dans la fonction onSplineMouseUp de SplineScene.jsx
 // Remplacez tout le contenu actuel de la fonction par ce qui suit:
 
+/**
+ * Gestionnaire pour les clics sur les objets Spline
+ * Modification pour améliorer la gestion des clics sur mobile
+ * @param {Object} e - Événement de clic
+ */
 const onSplineMouseUp = (e) => {
-  // Bloquer tous les clics si un swipe est en cours ou vient de se terminer
-  if (window.__isSwiping) {
-    logger.log('Clic bloqué: swipe en cours ou récent');
+  // Ignorer l'événement si les flags d'interaction tactile sont actifs
+  if (window.__isSwiping === true) {
+    logger.log('Clic bloqué: flag __isSwiping actif');
     return;
   }
   
-  // Continuer normalement avec le reste du code si aucun swipe n'est actif
-  if (!e.target) return;
-  
-  const objectName = e.target.name || '';
-  const objectUuid = e.target.uuid;
-  
-  // Vérifier si un swipe est actif et bloquer le clic si c'est le cas
-  if (window.__isSwipingActive === true) {
-    logger.log("Clic bloqué car un swipe est actif");
+  // Ne pas traiter si l'événement ne contient pas de cible ou si le swipe est actif
+  if (!e.target || window.__isSwipingActive === true) {
+    logger.log("Clic ignoré: cible manquante ou swipe actif");
     
-    // NOUVEAU: Empêcher la propagation et le comportement par défaut
+    // Arrêter la propagation pour éviter d'autres traitements
     if (e.stopPropagation) e.stopPropagation();
     if (e.preventDefault) e.preventDefault();
     return;
   }
+  
+  const objectName = e.target.name || '';
+  const objectUuid = e.target.uuid;
   
   // Obtenir l'ID de l'objet
   const objectId = getObjectId(objectName, objectUuid);
@@ -375,17 +377,9 @@ const onSplineMouseUp = (e) => {
     };
   }
   
-  // IMPORTANT: pour le bouton portfolio, nous ne faisons rien de spécial ici 
-  // mais nous empêchons EXPLICITEMENT le comportement standard des boutons.
-  // La gestion sera faite entièrement via moveToPortfolioView
+  // Pour le bouton portfolio
   if (isPortfolioButton) {
-    logger.log("Bouton portfolio détecté dans SplineScene - pas de désactivation des contrôles");
-    
-    // TRÈS IMPORTANT: Ne pas stocker lastClickedButtonRef.current pour le portfolio
-    // car c'est ce qui est utilisé pour restaurer l'état plus tard
-    // lastClickedButtonRef.current = objectId; <-- COMMENTÉ OU SUPPRIMÉ
-    
-    // On transmet simplement l'événement au parent qui utilisera notre fonction spéciale
+    logger.log("Bouton portfolio détecté - pas de désactivation des contrôles");
   }
   // Si ce n'est pas le bouton portfolio, gérer normalement
   else if (!isAutomaticDoorOpening && !isPortfolioDoorObj) {
@@ -403,6 +397,10 @@ const onSplineMouseUp = (e) => {
     // Pour la porte portfolio, stocker l'ID sans désactiver les contrôles
     lastClickedButtonRef.current = objectId;
   }
+  
+  // IMPORTANT: Forcer la désactivation du flag de swipe pour permettre
+  // le traitement du clic actuel sans être bloqué
+  window.__isSwipingActive = false;
   
   // Transmettre l'événement au parent avec l'ID en plus
   if (onObjectClick) {

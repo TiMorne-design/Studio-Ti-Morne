@@ -39,7 +39,8 @@ export default function useCameraControls(cameraRef, splineRef) {
     initialRotationY: 0,
     timestamp: 0,
     velocityX: 0,
-    velocityY: 0
+    velocityY: 0,
+    minSwipeDistance: 10 // Distance minimale pour considérer un mouvement comme un swipe
   });
   
   // Référence pour la boucle d'animation
@@ -60,7 +61,9 @@ export default function useCameraControls(cameraRef, splineRef) {
   const isOnTerrace = useRef(true);
   const doorOpenedRecently = useRef(false);
 
+  // Variables globales pour la gestion du swipe
   window.__isSwiping = false;
+  window.__isSwipingActive = false;
   
   // Configuration du mouvement de la caméra
   const config = {
@@ -70,8 +73,9 @@ export default function useCameraControls(cameraRef, splineRef) {
     scrollSpeed: 3800,         // Vitesse de défilement
     centerWidthZone: 0.5,      // Zone centrale horizontale où le mouvement vertical est permis
     maxSideRotation: 1.2,      // Rotation horizontale maximale (environ 69 degrés)
-    maxVerticalAngle: 0.3 ,     // Rotation verticale maximale (environ 17 degrés)
-    terraceSpeedMultiplier: 3.0
+    maxVerticalAngle: 0.3,     // Rotation verticale maximale (environ 17 degrés)
+    terraceSpeedMultiplier: 3.0,
+    inertiaEnabled: false      // Désactivation complète de l'inertie
   };
 
   const handlePortfolioButtonClick = useCallback(() => {
@@ -146,50 +150,50 @@ export default function useCameraControls(cameraRef, splineRef) {
         // Limites de la pièce
         const limits = cameraUtils.getCameraLimits();
         
-// Définir un seuil avancé pour l'ouverture de la porte
-const doorOpeningThreshold = limits.doorTrigger + 500; // Ajustez cette valeur (-50) selon vos besoins
+        // Définir un seuil avancé pour l'ouverture de la porte
+        const doorOpeningThreshold = limits.doorTrigger + 500; // Ajustez cette valeur selon vos besoins
 
-// Vérification pour l'ouverture anticipée de la porte
-if (isOnTerrace.current && 
-  currentPos.z <= doorOpeningThreshold && 
-  currentPos.z > limits.doorThreshold &&
-  !doorOpenedRecently.current &&
-   !window.__doorIsOpen && 
-  !window.__doorThresholdTriggered) {
+        // Vérification pour l'ouverture anticipée de la porte
+        if (isOnTerrace.current && 
+          currentPos.z <= doorOpeningThreshold && 
+          currentPos.z > limits.doorThreshold &&
+          !doorOpenedRecently.current &&
+          !window.__doorIsOpen && 
+          !window.__doorThresholdTriggered) {
 
-  // Ouvrir la porte en avance
-  if (splineRef.current) {
-    // Marquer l'ouverture comme automatique (si ce n'est pas déjà fait)
-    if (!window.__automaticDoorOpening) {
-      window.__automaticDoorOpening = true;
-      window.__doorThresholdTriggered = true;
-      doorOpenedRecently.current = true;
-      window.__doorIsOpen = true;
-      
-      // Émettre l'événement mouseUp sur l'objet PORTE_OUVERT (pas le bouton)
-      try {
-        splineHelpers.emitEvent(splineRef.current, 'mouseUp', OBJECT_IDS.PORTE_OUVERT);
-        logger.log("Ouverture anticipée de la porte avant le passage du seuil");
-      } catch (error) {
-        logger.error("Erreur lors de l'ouverture anticipée:", error);
-      }
-      
-      // Réinitialiser les flags après un délai
-      setTimeout(() => {
-        window.__automaticDoorOpening = false;
-        window.__doorThresholdTriggered = false;
-      
-      // Ajouter un délai supplémentaire avant de permettre une nouvelle ouverture
-      setTimeout(() => {
-        doorOpenedRecently.current = false;
-      }, 3000);
-    }, 1000);
-    }
-  }
-}
+          // Ouvrir la porte en avance
+          if (splineRef.current) {
+            // Marquer l'ouverture comme automatique (si ce n'est pas déjà fait)
+            if (!window.__automaticDoorOpening) {
+              window.__automaticDoorOpening = true;
+              window.__doorThresholdTriggered = true;
+              doorOpenedRecently.current = true;
+              window.__doorIsOpen = true;
+              
+              // Émettre l'événement mouseUp sur l'objet PORTE_OUVERT (pas le bouton)
+              try {
+                splineHelpers.emitEvent(splineRef.current, 'mouseUp', OBJECT_IDS.PORTE_OUVERT);
+                logger.log("Ouverture anticipée de la porte avant le passage du seuil");
+              } catch (error) {
+                logger.error("Erreur lors de l'ouverture anticipée:", error);
+              }
+              
+              // Réinitialiser les flags après un délai
+              setTimeout(() => {
+                window.__automaticDoorOpening = false;
+                window.__doorThresholdTriggered = false;
+              
+                // Ajouter un délai supplémentaire avant de permettre une nouvelle ouverture
+                setTimeout(() => {
+                  doorOpenedRecently.current = false;
+                }, 3000);
+              }, 1000);
+            }
+          }
+        }
 
-// Détecter si c'est un appareil tactile
-const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+        // Détecter si c'est un appareil tactile
+        const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
 
         // Vérification de la position Z pour détecter le passage de la porte
         if (isOnTerrace.current) {
@@ -197,33 +201,32 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
           if (currentPos.z <= limits.doorThreshold) {
             isOnTerrace.current = false;
             logger.log("Entrée dans le chalet - rotation activée");
-
-         }
+          }
         } else if (!isOnTerrace.current && currentPos.z > limits.doorThreshold) {
           // Passage de l'intérieur à la terrasse
           isOnTerrace.current = true;
           
           // Ajouter un log ici pour voir l'état quand on retourne sur la terrasse
-           logger.log("Retour sur la terrasse - hasPerformedFirstTurn:", hasPerformedFirstTurn.current, "isTouchDevice:", isTouchDevice);
+          logger.log("Retour sur la terrasse - hasPerformedFirstTurn:", hasPerformedFirstTurn.current, "isTouchDevice:", isTouchDevice);
 
-           // Sur desktop, définir la rotation neutre comme cible si aucun demi-tour n'a été fait
-  if (!isTouchDevice && !hasPerformedFirstTurn.current) {
-    const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
-    targetRotation.current.y = baseAngle;
-    targetRotation.current.x = 0;
-    targetPosition.current.x = initialPosition.current.x;
-    targetPosition.current.y = initialPosition.current.y;
-    logger.log("Sortie sur la terrasse - rotation désactivée pour desktop (avant premier demi-tour)");
-  }
-}
+          // Sur desktop, définir la rotation neutre comme cible si aucun demi-tour n'a été fait
+          if (!isTouchDevice && !hasPerformedFirstTurn.current) {
+            const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
+            targetRotation.current.y = baseAngle;
+            targetRotation.current.x = 0;
+            targetPosition.current.x = initialPosition.current.x;
+            targetPosition.current.y = initialPosition.current.y;
+            logger.log("Sortie sur la terrasse - rotation désactivée pour desktop (avant premier demi-tour)");
+          }
+        }
         
         // Appliquer un mouvement fluide à la position Z (avancer/reculer)
         const dz = targetPosition.current.z - currentPos.z;
         currentPos.z += dz * config.smoothFactor;
 
         // Mouvements horizontaux et verticaux (X/Y)
-    const dx = targetPosition.current.x - currentPos.x;
-    const dy = targetPosition.current.y - currentPos.y;
+        const dx = targetPosition.current.x - currentPos.x;
+        const dy = targetPosition.current.y - currentPos.y;
         
         currentPos.x += dx * config.smoothFactor;
         currentPos.y += dy * config.smoothFactor;
@@ -235,36 +238,36 @@ const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
         currentRot.x += drx * config.smoothFactor;
         currentRot.y += dry * config.smoothFactor;
 
-         // Mise à jour de la rotation des boutons spécifiques seulement
-if (splineRef.current) {
-  const splineApp = splineRef.current;
-  
-  // Liste des boutons spécifiques qui doivent tourner
-  const rotatingButtonIds = [
-    BUTTON_IDS.DATAVIZ,
-    BUTTON_IDS.ABOUT, 
-    BUTTON_IDS.SITE, 
-    BUTTON_IDS.MODEL3D, // Supposé être votre "3D"
-    BUTTON_IDS.PRESTATIONS
-  ];
-  
-  // Pour chaque bouton dans la liste spécifique
-  rotatingButtonIds.forEach(buttonId => {
-    const buttonObject = splineApp.findObjectById(buttonId);
-    if (!buttonObject) return;
-    
-    // Calculer l'angle entre la caméra et le bouton sur le plan XZ
-    const angleY = Math.atan2(
-      currentPos.x - buttonObject.position.x,
-      currentPos.z - buttonObject.position.z
-    );
-    
-    // Appliquer une rotation fluide
-    const currentButtonRotY = buttonObject.rotation.y;
-    buttonObject.rotation.y = currentButtonRotY + 
-      (angleY - currentButtonRotY) * config.smoothFactor;
-  });
-}
+        // Mise à jour de la rotation des boutons spécifiques seulement
+        if (splineRef.current) {
+          const splineApp = splineRef.current;
+          
+          // Liste des boutons spécifiques qui doivent tourner
+          const rotatingButtonIds = [
+            BUTTON_IDS.DATAVIZ,
+            BUTTON_IDS.ABOUT, 
+            BUTTON_IDS.SITE, 
+            BUTTON_IDS.MODEL3D, // Supposé être votre "3D"
+            BUTTON_IDS.PRESTATIONS
+          ];
+          
+          // Pour chaque bouton dans la liste spécifique
+          rotatingButtonIds.forEach(buttonId => {
+            const buttonObject = splineApp.findObjectById(buttonId);
+            if (!buttonObject) return;
+            
+            // Calculer l'angle entre la caméra et le bouton sur le plan XZ
+            const angleY = Math.atan2(
+              currentPos.x - buttonObject.position.x,
+              currentPos.z - buttonObject.position.z
+            );
+            
+            // Appliquer une rotation fluide
+            const currentButtonRotY = buttonObject.rotation.y;
+            buttonObject.rotation.y = currentButtonRotY + 
+              (angleY - currentButtonRotY) * config.smoothFactor;
+          });
+        }
         
         // Maintenir toujours la rotation Z à 0
         currentRot.z = 0;
@@ -281,10 +284,11 @@ if (splineRef.current) {
    */
   const invertMovementDirection = useCallback(() => {
     // Vérifier si on est sur la terrasse et si on n'a pas encore fait de demi-tour
-  if (isOnTerrace.current && !hasPerformedFirstTurn.current) {
-    logger.log("Demi-tour sur la terrasse bloqué - effectuez d'abord un demi-tour au fond du chalet");
-    return; // Bloquer l'inversion si on est sur la terrasse sans avoir fait le premier demi-tour
-  }
+    if (isOnTerrace.current && !hasPerformedFirstTurn.current) {
+      logger.log("Demi-tour sur la terrasse bloqué - effectuez d'abord un demi-tour au fond du chalet");
+      return; // Bloquer l'inversion si on est sur la terrasse sans avoir fait le premier demi-tour
+    }
+    
     // Inverser la direction
     movementDirection.current = -movementDirection.current;
     
@@ -303,11 +307,11 @@ if (splineRef.current) {
       }
       
       // Si ce demi-tour est effectué au fond du chalet, marquer qu'on a réalisé le premier demi-tour
-    const limits = cameraUtils.getCameraLimits();
-    if (!isOnTerrace.current && cameraRef.current.position.z <= limits.minZ + 500) {
-      hasPerformedFirstTurn.current = true;
-      logger.log("Premier demi-tour effectué au fond du chalet - demi-tour sur terrasse débloqué");
-    }
+      const limits = cameraUtils.getCameraLimits();
+      if (!isOnTerrace.current && cameraRef.current.position.z <= limits.minZ + 500) {
+        hasPerformedFirstTurn.current = true;
+        logger.log("Premier demi-tour effectué au fond du chalet - demi-tour sur terrasse débloqué");
+      }
     
       // Ajouter une brève "pause" dans le mouvement pour accentuer le demi-tour
       const currentPosition = { ...targetPosition.current };
@@ -382,67 +386,67 @@ if (splineRef.current) {
       targetPosition.current.z = newZ;
     }
   }, [controlsEnabled, invertMovementDirection]);
+  
   /**
- * Gère uniquement les mouvements de souris - ne doit jamais traiter d'événements tactiles
- * @param {MouseEvent} e - Événement souris standard
- */
-const handleMouseMove = useCallback((e) => {
-  // Ignorer complètement les événements tactiles
-  if (e.isTouchEvent === true || e.type === 'touchmove' || e.touches) {
-    return;
-  }
-  
-  if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
-  
-  // Vérifier si on est sur la terrasse et si on doit ignorer l'événement
-  if (isOnTerrace.current && !hasPerformedFirstTurn.current) {
-    return;
-  }
-  // Normaliser la position de la souris entre -1 et 1
-  const x = (e.clientX / window.innerWidth) * 2 - 1;
-  const y = (e.clientY / window.innerHeight) * 2 - 1;
-  
-  // Appliquer la courbe de réponse pour un mouvement plus précis
-  const xModified = Math.sign(x) * Math.pow(Math.abs(x), 1.2);
-  const yModified = Math.sign(y) * Math.pow(Math.abs(y), 1.3);
-  
-  // Calcul de la distance du curseur par rapport au centre
-  const distanceFromCenterX = Math.abs(xModified);
-  
-  // Calculer les offsets de position
-  const posOffsetX = xModified * config.maxPositionOffset * 1.2;
-  const verticalFactor = Math.max(0, 1 - (distanceFromCenterX / config.centerWidthZone));
-  const posOffsetY = -yModified * config.maxPositionOffset * 0.4 * verticalFactor;
-  
-  // Appliquer ces offsets à la position cible
-  targetPosition.current.x = initialPosition.current.x + posOffsetX;
-  targetPosition.current.y = initialPosition.current.y + posOffsetY;
-  
-  // Base de rotation selon la direction du mouvement
-  const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
-  
-  // Pour la souris, standard: inversion du mouvement
-  targetRotation.current.y = baseAngle + (-xModified * config.maxSideRotation);
-  
-  // Rotation verticale (X) adaptée à la direction
-  if (movementDirection.current > 0) {
-    targetRotation.current.x = -yModified * config.maxVerticalAngle * verticalFactor;
-  } else {
-    targetRotation.current.x = yModified * config.maxVerticalAngle * verticalFactor;
-  }
-  
-  // Assurer que la rotation Z reste à 0
-  targetRotation.current.z = 0;
-}, [controlsEnabled, config.maxPositionOffset, config.centerWidthZone, config.maxSideRotation, config.maxVerticalAngle]);
+   * Gère uniquement les mouvements de souris - ne doit jamais traiter d'événements tactiles
+   * @param {MouseEvent} e - Événement souris standard
+   */
+  const handleMouseMove = useCallback((e) => {
+    // Ignorer complètement les événements tactiles
+    if (e.isTouchEvent === true || e.type === 'touchmove' || e.touches) {
+      return;
+    }
+    
+    if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
+    
+    // Vérifier si on est sur la terrasse et si on doit ignorer l'événement
+    if (isOnTerrace.current && !hasPerformedFirstTurn.current) {
+      return;
+    }
+    
+    // Normaliser la position de la souris entre -1 et 1
+    const x = (e.clientX / window.innerWidth) * 2 - 1;
+    const y = (e.clientY / window.innerHeight) * 2 - 1;
+    
+    // Appliquer la courbe de réponse pour un mouvement plus précis
+    const xModified = Math.sign(x) * Math.pow(Math.abs(x), 1.2);
+    const yModified = Math.sign(y) * Math.pow(Math.abs(y), 1.3);
+    
+    // Calcul de la distance du curseur par rapport au centre
+    const distanceFromCenterX = Math.abs(xModified);
+    
+    // Calculer les offsets de position
+    const posOffsetX = xModified * config.maxPositionOffset * 1.2;
+    const verticalFactor = Math.max(0, 1 - (distanceFromCenterX / config.centerWidthZone));
+    const posOffsetY = -yModified * config.maxPositionOffset * 0.4 * verticalFactor;
+    
+    // Appliquer ces offsets à la position cible
+    targetPosition.current.x = initialPosition.current.x + posOffsetX;
+    targetPosition.current.y = initialPosition.current.y + posOffsetY;
+    
+    // Base de rotation selon la direction du mouvement
+    const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
+    
+    // Pour la souris, standard: inversion du mouvement
+    targetRotation.current.y = baseAngle + (-xModified * config.maxSideRotation);
+    
+    // Rotation verticale (X) adaptée à la direction
+    if (movementDirection.current > 0) {
+      targetRotation.current.x = -yModified * config.maxVerticalAngle * verticalFactor;
+    } else {
+      targetRotation.current.x = yModified * config.maxVerticalAngle * verticalFactor;
+    }
+    
+    // Assurer que la rotation Z reste à 0
+    targetRotation.current.z = 0;
+  }, [controlsEnabled, config.maxPositionOffset, config.centerWidthZone, config.maxSideRotation, config.maxVerticalAngle]);
 
-
-/**
-   * Gère les événements tactiles pour tous les appareils
-   * Version améliorée avec inertie et transitions plus fluides
+  /**
+   * Gère les événements tactiles sans inertie
    * @param {TouchEvent} e - Événement tactile natif
    */
-/**
- * Gère les événements tactiles avec inertie réduite
+  /**
+ * Gère les événements tactiles avec une légère inertie
  * @param {TouchEvent} e - Événement tactile natif
  */
 const handleTouchMove = useCallback((e) => {
@@ -455,203 +459,227 @@ const handleTouchMove = useCallback((e) => {
   const state = touchStateRef.current;
   const now = Date.now();
   
-   // Si l'état du toucher n'est pas initialisé, ne rien faire
-  // (cela devrait être géré par handleTouchStart)
+  // Si l'état du toucher n'est pas initialisé, ne rien faire
   if (!state.isDragging) return;
   
-  // Calcul du delta depuis le dernier mouvement et mise à jour de la vélocité
-  const deltaTime = Math.max(10, now - state.timestamp); // Éviter les divisions par zéro
+  // Calcul du delta depuis le dernier mouvement pour l'inertie légère
+  const deltaTime = Math.max(10, now - state.timestamp); // Éviter divisions par zéro
   const deltaXFromLast = touch.clientX - state.lastX;
   const deltaYFromLast = touch.clientY - state.lastY;
   
-  // MODIFICATION: Réduire le coefficient d'inertie de 0.7 à 0.4
-  // Cela réduit l'influence de la vélocité précédente
-  state.velocityX = 0.4 * state.velocityX + 0.6 * (deltaXFromLast / deltaTime);
-  state.velocityY = 0.4 * state.velocityY + 0.6 * (deltaYFromLast / deltaTime);
-   
-  // Calcul du delta depuis le DÉBUT du toucher
+  // Calculer les vélocités avec une faible influence de la vélocité précédente
+  // pour une inertie très douce
+  const velocityInfluence = 0.7; // Réduit de 0.7 à 0.3 pour moins d'inertie
+  state.velocityX = velocityInfluence * state.velocityX + 
+                    (1 - velocityInfluence) * (deltaXFromLast / deltaTime);
+  state.velocityY = velocityInfluence * state.velocityY + 
+                    (1 - velocityInfluence) * (deltaYFromLast / deltaTime);
+  
+  // Calcul du delta depuis le DÉBUT du toucher pour les rotations absolues
   const deltaXFromStart = touch.clientX - state.startX;
+  const deltaYFromStart = touch.clientY - state.startY;
   
-  // Base de rotation selon la direction de mouvement
-  const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
+  // Vérifier si le mouvement est un swipe
+  const isSwipe = Math.abs(deltaXFromStart) > state.minSwipeDistance || 
+                  Math.abs(deltaYFromStart) > state.minSwipeDistance;
   
-  // MODIFICATION: Réduire la sensibilité par défaut
-  const sensitivity = (window.__touchSensitivity || 1.0) * 0.7;
-  
-  // Calculer la rotation cible ABSOLUE depuis le début du toucher
-  // MODIFICATION: Réduire le facteur de rotation
-  const rotationOffset = deltaXFromStart * 0.003 * sensitivity;
-  
-  // Appliquer un easing pour une rotation plus naturelle
-  const easedRotationOffset = animationUtils.easingFunctions.easeOutCubic(Math.abs(rotationOffset)) * Math.sign(rotationOffset);
-  
-  targetRotation.current.y = state.initialRotationY + easedRotationOffset;
-  
-  // Normaliser les positions tactiles
-  const normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
-  const normalizedY = (touch.clientY / window.innerHeight) * 2 - 1;
-  
-  // MODIFICATION: Réduire la puissance des courbes de réponse
-  const xModified = Math.sign(normalizedX) * Math.pow(Math.abs(normalizedX), 1.0) * sensitivity;
-  const yModified = Math.sign(normalizedY) * Math.pow(Math.abs(normalizedY), 1.0) * sensitivity;
-  
-  // Distance du centre pour la zone morte
-  const distanceFromCenterX = Math.abs(xModified);
-  
-  // Position avec offset proportionnel au mouvement
-  // MODIFICATION: Réduire les offsets
-  const posOffsetX = xModified * config.maxPositionOffset * 0.8;
-  const verticalFactor = Math.max(0, 1 - (distanceFromCenterX / config.centerWidthZone));
-  
-  // MODIFICATION: Réduire l'easing vertical
-  const easedVerticalFactor = animationUtils.easingFunctions.easeOutQuad(verticalFactor) * 0.8;
-  const posOffsetY = -yModified * config.maxPositionOffset * 0.3 * easedVerticalFactor;
-  
-  // Appliquer à la position cible
-  targetPosition.current.x = initialPosition.current.x + posOffsetX;
-  targetPosition.current.y = initialPosition.current.y + posOffsetY;
-  
-  // Rotation verticale adaptée à la direction avec easing réduit
-  if (movementDirection.current > 0) {
-    targetRotation.current.x = -yModified * config.maxVerticalAngle * easedVerticalFactor * 0.8;
-  } else {
-    targetRotation.current.x = yModified * config.maxVerticalAngle * easedVerticalFactor * 0.8;
-  }
-  
-  // Assurer que Z reste à 0
-  targetRotation.current.z = 0;
-  
-  // MODIFICATION: Désactiver complètement l'inertie si elle est source de problèmes
-  // ou bien réduire fortement son influence
-  if (config.inertiaEnabled) {
-    // Stocker les vélocités pour l'inertie avec valeurs réduites
-    if (inertiaSystem && inertiaSystem.current) {
-      inertiaSystem.current.velocityRotY = state.velocityX * 0.0005 * sensitivity;
-      inertiaSystem.current.velocityRotX = -state.velocityY * 0.0005 * sensitivity * 
-                                         (movementDirection.current > 0 ? 1 : -1);
-      inertiaSystem.current.applyInertia = true;
+  if (isSwipe) {
+    window.__isSwipingActive = true;
+    window.__isSwiping = true;
+    touchSwipeActiveRef.current = true;
+    
+    if (touchSwipeTimerRef.current) {
+      clearTimeout(touchSwipeTimerRef.current);
     }
   }
   
-  // Mettre à jour la position pour le prochain événement
+  // Base de rotation selon la direction
+  const baseAngle = movementDirection.current > 0 ? 0 : Math.PI;
+  
+  // Sensibilité réduite
+  const sensitivity = (window.__touchSensitivity || 1.0) * 0.6;
+  
+  // Calculer la rotation depuis le début du toucher
+  const rotationOffset = deltaXFromStart * 0.002 * sensitivity;
+  
+  targetRotation.current.y = state.initialRotationY + rotationOffset;
+  
+  // Normaliser les positions
+  const normalizedX = (touch.clientX / window.innerWidth) * 2 - 1;
+  const normalizedY = (touch.clientY / window.innerHeight) * 2 - 1;
+  
+  const xModified = Math.sign(normalizedX) * Math.pow(Math.abs(normalizedX), 1.0) * sensitivity;
+  const yModified = Math.sign(normalizedY) * Math.pow(Math.abs(normalizedY), 1.0) * sensitivity;
+  
+  const distanceFromCenterX = Math.abs(xModified);
+  
+  // Position avec offset réduit
+  const posOffsetX = xModified * config.maxPositionOffset * 0.6;
+  const verticalFactor = Math.max(0, 1 - (distanceFromCenterX / config.centerWidthZone));
+  
+  const easedVerticalFactor = verticalFactor * 0.6;
+  const posOffsetY = -yModified * config.maxPositionOffset * 0.3 * easedVerticalFactor;
+  
+  targetPosition.current.x = initialPosition.current.x + posOffsetX;
+  targetPosition.current.y = initialPosition.current.y + posOffsetY;
+  
+  // Rotation verticale adaptée à la direction
+  if (movementDirection.current > 0) {
+    targetRotation.current.x = -yModified * config.maxVerticalAngle * easedVerticalFactor * 0.6;
+  } else {
+    targetRotation.current.x = yModified * config.maxVerticalAngle * easedVerticalFactor * 0.6;
+  }
+  
+  // Toujours maintenir Z à 0
+  targetRotation.current.z = 0;
+  
+  // Mettre à jour pour le prochain événement
   state.lastX = touch.clientX;
   state.lastY = touch.clientY;
   state.timestamp = now;
   
-  // Marquer le swipe comme actif pour bloquer les clics accidentels
-  window.__isSwipingActive = true;
-  touchSwipeActiveRef.current = true;
-  
-  // Nettoyer le timer existant s'il y en a un
+  // Timer pour réinitialiser l'état de swipe
   if (touchSwipeTimerRef.current) {
     clearTimeout(touchSwipeTimerRef.current);
   }
   
-  // Définir un nouveau timer pour réinitialiser l'état de swipe
-  touchSwipeTimerRef.current = setTimeout(() => {
-    window.__isSwipingActive = false;
-    touchSwipeActiveRef.current = false;
-  }, 300);
-}, [controlsEnabled, isAfterButtonClick, isOnTerrace, hasPerformedFirstTurn]);
-
-/**
- * Gère le début d'un événement tactile et bloque les clics
- * @param {TouchEvent} e - Événement tactile natif
- */
-const handleTouchStart = useCallback((e) => {
-  if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
-  
-  // Vérifier qu'il s'agit bien d'un toucher à un doigt
-  if (!e.touches || e.touches.length !== 1) return;
-  
-  const touch = e.touches[0];
-  const state = touchStateRef.current;
-  
-  // Marquer immédiatement le swipe comme actif pour bloquer les clics
-  window.__isSwipingActive = true;
-  window.__isSwiping = true; // Pour compatibilité avec onSplineMouseUp
-  touchSwipeActiveRef.current = true;
-  
-  // Initialiser l'état du toucher
-  state.startX = touch.clientX;
-  state.startY = touch.clientY;
-  state.lastX = touch.clientX;
-  state.lastY = touch.clientY;
-  state.isDragging = true;
-  state.timestamp = Date.now();
-  state.velocityX = 0;
-  state.velocityY = 0;
-  
-  // Stocker la rotation initiale
-  if (cameraRef.current) {
-    state.initialRotationY = cameraRef.current.rotation.y;
-  }
-  
-  // Nettoyer le timer existant si présent
-  if (touchSwipeTimerRef.current) {
-    clearTimeout(touchSwipeTimerRef.current);
-  }
-  
-  // Définir un nouveau timer pour réinitialiser l'état de swipe après un délai
   touchSwipeTimerRef.current = setTimeout(() => {
     window.__isSwipingActive = false;
     window.__isSwiping = false;
     touchSwipeActiveRef.current = false;
-  }, 300);
-  
-  // Ne pas appeler e.preventDefault() ici - utiliser touch-action: none en CSS à la place
+  }, 150);
 }, [controlsEnabled, isAfterButtonClick]);
 
-
-
-/**
- * Gère la fin d'un toucher avec inertie
- * @param {TouchEvent} e - Événement tactile natif
- */
-const handleTouchEnd = useCallback((e) => {
-  // Réinitialiser l'état du toucher
-  const state = touchStateRef.current;
-  if (state.isDragging) {
-    state.isDragging = false;
-
-  }
+  /**
+   * Gère le début d'un événement tactile
+   * @param {TouchEvent} e - Événement tactile natif
+   */
+  const handleTouchStart = useCallback((e) => {
+    if (!cameraRef.current || !controlsEnabled || isAfterButtonClick.current) return;
     
-   // Désactiver le flag de swipe après un court délai
-  // pour éviter que les clics juste après le swipe ne se déclenchent
-  setTimeout(() => {
-    window.__isSwiping = false;
-  }, 200); // 200ms est généralement suffisant
-}, []);
+    // Vérifier qu'il s'agit bien d'un toucher à un doigt
+    if (!e.touches || e.touches.length !== 1) return;
+    
+    const touch = e.touches[0];
+    const state = touchStateRef.current;
+    
+    // Réinitialiser les flags de swipe
+    window.__isSwipingActive = false;
+    window.__isSwiping = false; 
+    touchSwipeActiveRef.current = false;
+    
+    // Initialiser l'état du toucher
+    state.startX = touch.clientX;
+    state.startY = touch.clientY;
+    state.lastX = touch.clientX;
+    state.lastY = touch.clientY;
+    state.isDragging = true;
+    state.timestamp = Date.now();
+    
+    // Stocker la rotation initiale
+    if (cameraRef.current) {
+      state.initialRotationY = cameraRef.current.rotation.y;
+    }
+    
+    // Nettoyer le timer existant si présent
+    if (touchSwipeTimerRef.current) {
+      clearTimeout(touchSwipeTimerRef.current);
+      touchSwipeTimerRef.current = null;
+    }
+  }, [controlsEnabled, isAfterButtonClick]);
 
-/**
- * Sauvegarde l'état actuel de la caméra
- */
-const saveCurrentCameraState = useCallback(() => {
-  if (!cameraRef.current) return;
-  
-  const camera = cameraRef.current;
-  
-  previousCameraState.current = {
-    position: {
-      x: camera.position.x,
-      y: camera.position.y,
-      z: camera.position.z
-    },
-    rotation: {
-      x: camera.rotation.x,
-      y: camera.rotation.y,
-      z: camera.rotation.z
-    },
-    initialPosition: { ...initialPosition.current },
-    initialRotation: { ...initialRotation.current },
-    targetPosition: { ...targetPosition.current },
-    targetRotation: { ...targetRotation.current },
-    movementDirection: movementDirection.current,
-    isOnTerrace: isOnTerrace.current
-  };
-  
-  logger.log("État de la caméra sauvegardé");
-}, []);
+  /**
+   * Gère la fin d'un toucher
+   * @param {TouchEvent} e - Événement tactile natif
+   */
+  const handleTouchEnd = useCallback((e) => {
+    // Réinitialiser l'état du toucher
+    const state = touchStateRef.current;
+    if (state.isDragging) {
+      state.isDragging = false;
+      
+      // Conserver une légère inertie basée sur le dernier mouvement
+      if (cameraRef.current) {
+        // Calculer la vélocité finale mais la réduire fortement
+        const velocityDampening = 0.25; // Facteur de réduction (0 = pas d'inertie, 1 = inertie complète)
+        
+        // Appliquer une légère inertie en rotation Y (horizontal)
+        const inertiaRotationY = state.velocityX * 0.01 * velocityDampening;
+        const currentRotationY = cameraRef.current.rotation.y;
+        
+        // L'inertie ne doit s'appliquer que pendant un temps très court
+        const maxInertiaDistance = 0.2; // Limite la distance parcourue par l'inertie
+        
+        // Limiter l'effet d'inertie
+        const boundedInertiaY = Math.sign(inertiaRotationY) * 
+                                Math.min(Math.abs(inertiaRotationY), maxInertiaDistance);
+        
+        // Appliquer cette légère inertie à la rotation cible
+        targetRotation.current.y = currentRotationY + boundedInertiaY;
+        
+        // Conserver la position actuelle en X/Y pour éviter les dérives
+        targetPosition.current.x = cameraRef.current.position.x;
+        targetPosition.current.y = cameraRef.current.position.y;
+        
+        // Réinitialiser les vélocités après l'application
+        state.velocityX = 0;
+        state.velocityY = 0;
+        
+        // Arrêter complètement l'inertie après un court délai
+        setTimeout(() => {
+          if (cameraRef.current) {
+            // Synchroniser complètement pour arrêter tout mouvement
+            targetRotation.current.y = cameraRef.current.rotation.y;
+            targetRotation.current.x = cameraRef.current.rotation.x;
+          }
+        }, 200); // Très court délai pour l'inertie (100ms)
+      }
+    }
+    
+    // Désactiver le flag de swipe après un court délai
+    // pour permettre aux boutons d'être cliqués rapidement
+    setTimeout(() => {
+      window.__isSwiping = false;
+      window.__isSwipingActive = false;
+      touchSwipeActiveRef.current = false;
+    }, 50); // Délai réduit pour une meilleure réactivité des boutons
+    
+    // Nettoyer les timers
+    if (touchSwipeTimerRef.current) {
+      clearTimeout(touchSwipeTimerRef.current);
+      touchSwipeTimerRef.current = null;
+    }
+  }, []);
+
+  /**
+   * Sauvegarde l'état actuel de la caméra
+   */
+  const saveCurrentCameraState = useCallback(() => {
+    if (!cameraRef.current) return;
+    
+    const camera = cameraRef.current;
+    
+    previousCameraState.current = {
+      position: {
+        x: camera.position.x,
+        y: camera.position.y,
+        z: camera.position.z
+      },
+      rotation: {
+        x: camera.rotation.x,
+        y: camera.rotation.y,
+        z: camera.rotation.z
+      },
+      initialPosition: { ...initialPosition.current },
+      initialRotation: { ...initialRotation.current },
+      targetPosition: { ...targetPosition.current },
+      targetRotation: { ...targetRotation.current },
+      movementDirection: movementDirection.current,
+      isOnTerrace: isOnTerrace.current
+    };
+    
+    logger.log("État de la caméra sauvegardé");
+  }, []);
   
   /**
    * Désactive les contrôles lors d'un clic sur un bouton
@@ -667,6 +695,10 @@ const saveCurrentCameraState = useCallback(() => {
     logger.log("Contrôles de caméra complètement désactivés après clic sur bouton");
   }, [saveCurrentCameraState]);
   
+  /**
+   * Restaure l'état précédent de la caméra
+   * @param {Number} animationDuration - Durée de l'animation en ms
+   */
   /**
    * Restaure l'état précédent de la caméra
    * @param {Number} animationDuration - Durée de l'animation en ms
